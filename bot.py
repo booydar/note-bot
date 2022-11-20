@@ -8,7 +8,7 @@ from transcribe import ogg2wav, transcribe_audio
 class NoteBot(telebot.TeleBot):
     def __init__(self, cred_path='creds.txt'):
         with open('creds.txt', 'r') as f:
-            API_TOKEN = f.read()
+            API_TOKEN = f.read().strip()
         super().__init__(API_TOKEN)
         self.lang = 'ru-RU'
 
@@ -27,7 +27,7 @@ class NoteBot(telebot.TeleBot):
         os.system('rm tmp.*')
         return transcription
 
-    def save_last_message(self, sv_folder='saved_notes'):
+    def save_last_message(self, sv_folder='/home/booydar/Documents/obsidian/fort-knox/voice'):
         dt = str(datetime.datetime.now())
         dt_pfx = re.sub(r'[^0-9]', '', dt.split('.')[0])
         sv_path = f'{sv_folder}/{dt_pfx}.md'
