@@ -4,6 +4,8 @@ import datetime
 import telebot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from transcribe import ogg2wav, transcribe_audio
+from parse import parse_message
+
 
 class NoteBot(telebot.TeleBot):
     def __init__(self, cred_path='creds.txt'):
@@ -12,8 +14,6 @@ class NoteBot(telebot.TeleBot):
         super().__init__(API_TOKEN)
         self.lang = 'ru-RU'
 
-        with open('template.md', 'r') as f:
-            self.template = f.read()
 
     def transcribe_message(self, message):
         file_info = self.get_file(message.voice.file_id)
@@ -27,17 +27,19 @@ class NoteBot(telebot.TeleBot):
         os.system('rm tmp.*')
         return transcription
 
-    def save_last_message(self, sv_folder='/home/booydar/Documents/obsidian/fort-knox/voice'):
+    
+    def save_last_message(self, sv_folder='saved_notes'):
         dt = str(datetime.datetime.now())
-        dt_pfx = re.sub(r'[^0-9]', '', dt.split('.')[0])
+        dt_pfx = re.sub(r'[:]', '-', dt.split('.')[0])
         sv_path = f'{sv_folder}/{dt_pfx}.md'
         
-        note = self.template.format(self.last_message)
+        note = parse_message(self.last_message)
         with open(sv_path, 'w') as f:
             f.write(note)
 
     
 bot = NoteBot()
+
 
 def lang_markup():
     markup = InlineKeyboardMarkup()
@@ -45,6 +47,7 @@ def lang_markup():
     markup.add(InlineKeyboardButton("Ru", callback_data="ru-RU"),
                                InlineKeyboardButton("En", callback_data="en-EN"))
     return markup
+
 
 def save_markup():
     markup = InlineKeyboardMarkup()
