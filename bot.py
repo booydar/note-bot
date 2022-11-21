@@ -1,6 +1,7 @@
 import os
 import re
 import datetime
+import random
 import telebot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from transcribe import ogg2wav, transcribe_audio
@@ -90,7 +91,12 @@ def handle_voice(message):
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
-    bot.tags.append(message.text)
+    if message.text.startswith('/random_number'):
+        bot.send_message(message.chat.id, random.randint(0, 100))
+    elif message.text.startswith('/yes_or_no'):
+        bot.send_message(message.chat.id, random.choice(('yes', 'no')))
+    else:
+        bot.tags.append(message.text)
     
 
 bot.infinity_polling()
