@@ -1,0 +1,4 @@
+[{
+    "token": "<YOUR_TOKEN>",
+    "db_path": "<PATH_TO_ZDB>"
+}]
