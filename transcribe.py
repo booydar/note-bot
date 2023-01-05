@@ -1,5 +1,8 @@
 import speech_recognition as sr
 from pydub import AudioSegment
+import sys
+
+sys.path.append('/home/booydar/Desktop/projects/tg_notebot/env_notebot/lib/python3.9/site-packages/ffprobe')
 
 def ogg2wav(ogg_path):
     sound = AudioSegment.from_ogg(ogg_path)
