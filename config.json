@@ -1,4 +1,5 @@
-[{
+{
     "token": "<YOUR_TOKEN>",
-    "db_path": "<PATH_TO_ZDB>"
-}]
+    "chat_id": "<ADMIN_CHAT_ID>",
+    "db_path": "<ZETTEL_DB_PATH>"
+}
