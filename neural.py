@@ -16,6 +16,7 @@ class Model:
     def __init__(self, config=CONFIG):
         gpt2_name = config['model_name']
         self.model = config['model_cls'].from_pretrained(gpt2_name)
+        self.model.eval()
         self.tokenizer = GPT2Tokenizer.from_pretrained(gpt2_name)
         self.model.to(config['device'])
         self.config = config
