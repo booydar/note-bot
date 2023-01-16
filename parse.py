@@ -1,5 +1,5 @@
 TEMPLATE = "{}\n\n---\n{}\n\n---"
-FIRST_WORD_TRIGGERS = {"idea": "ideas", "project": "project", "life": "life", "идея": "ideas", "проект": "project", "жизнь": "life"}
+FIRST_WORD_TRIGGERS = {"idea": "ideas", "project": "project", "life": "life", "diary": "diary", "идея": "ideas", "проект": "project", "жизнь": "life", "дневник": "diary"}
 
 def parse_message(message, tags=[]):
     first_word = message.split(' ')[0].strip().lower()

@@ -48,6 +48,10 @@ class NoteBot(telebot.TeleBot):
             f.write(note)
 
     
+    def get_config(self):
+        return self.model.config
+
+    
 bot = NoteBot()
 
 
@@ -115,20 +119,20 @@ def handle_text(message):
         bot.send_message(message.chat.id, random.choice(('yes', 'no')))
     elif message.text.startswith('/language'):
         bot.send_message(message.chat.id, 'Выбери язык:', reply_markup=lang_markup())
-    elif message.text.startswith('/set_min_gen_length'):
-        bot.send_message(message.chat.id, 'to what value?')
-        bot.wait_value = 'min_length'
-    elif message.text.startswith('/set_max_gen_length'):
-        bot.send_message(message.chat.id, 'to what value?')
-        bot.wait_value = 'max_length'
-    elif message.text.startswith('/set_num_beams'):
-        bot.send_message(message.chat.id, 'to what value?')
-        bot.wait_value = 'num_beams'
+    elif message.text.startswith('/set_'):
+        bot.wait_value = message.text.split('/set_')[1]
+        bot.send_message(message.chat.id, f'set {bot.wait_value} to what value?')
+    elif message.text.startswith('/config'):
+        msg = '; '.join([f'{k}-{v}' for k, v in bot.get_config().items()])
+        bot.send_message(message.chat.id, msg)
     elif bot.wait_value == 'tag':
         bot.tags.append(message.text)
         bot.wait_value = False
     elif bot.wait_value:
-        bot.model.config[bot.wait_value] = int(message.text)
+        if '.' in message.text:
+            bot.model.config[bot.wait_value] = float(message.text)
+        else:
+            bot.model.config[bot.wait_value] = int(message.text)
         bot.wait_value = False
     else:
         bot.last_message = message.text
