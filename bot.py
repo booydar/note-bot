@@ -97,7 +97,7 @@ def callback_query(call):
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot = NoteBot()
+    bot.last_message = ''
     bot.chat_id = message.chat.id
     bot.send_message(message.chat.id,'Привет!\nМожешь отправить мне голосовую заметку, я всё сохраню.\nВыбери язык:', reply_markup=lang_markup())
 
