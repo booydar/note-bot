@@ -22,7 +22,7 @@ class NoteBot(telebot.TeleBot):
         self.tags = []
         self.model = Model()
         self.wait_value = False
-
+        self.last_message = ''
 
     def transcribe_message(self, message):
         self.tags = []
@@ -33,10 +33,8 @@ class NoteBot(telebot.TeleBot):
 
         wav_path = ogg2wav('tmp.ogg')
         transcription = transcribe_audio(wav_path, self.lang)
-        self.last_message = transcription
         os.system('rm tmp.*')
         return transcription
-
     
     def save_last_message(self):
         dt = str(datetime.datetime.now())
@@ -46,7 +44,7 @@ class NoteBot(telebot.TeleBot):
         note = parse_message(self.last_message, self.tags)
         with open(sv_path, 'w') as f:
             f.write(note)
-
+        self.last_message = ''
     
     def get_config(self):
         return self.model.config
@@ -83,7 +81,7 @@ def callback_query(call):
     elif call.data == 'save':
         # print('chat id', bot.chat_id)
         if str(bot.chat_id) == str(bot.correct_chat_id):
-            bot.save_last_message()     
+            bot.save_last_message()
             bot.answer_callback_query(call.id, "Note saved")
         else:
             bot.send_message(bot.chat_id, "Ты не Айдар, не буду ничего сохранять!")
@@ -98,7 +96,8 @@ def callback_query(call):
 
 
 @bot.message_handler(commands=['start'])
-def start_message(message):    
+def start_message(message):
+    bot = NoteBot()
     bot.chat_id = message.chat.id
     bot.send_message(message.chat.id,'Привет!\nМожешь отправить мне голосовую заметку, я всё сохраню.\nВыбери язык:', reply_markup=lang_markup())
 
@@ -107,6 +106,7 @@ def start_message(message):
 def handle_voice(message):
     bot.chat_id = message.chat.id
     transcription = bot.transcribe_message(message)
+    bot.last_message += transcription + ' '
     bot.send_message(message.chat.id, transcription, reply_markup=save_markup())
 
 
@@ -135,9 +135,8 @@ def handle_text(message):
             bot.model.config[bot.wait_value] = int(message.text)
         bot.wait_value = False
     else:
-        bot.last_message = message.text
-        bot.send_message(message.chat.id, message.text, reply_markup=save_markup())
-        
+        bot.last_message += message.text + ' '
+        bot.send_message(message.chat.id, bot.last_message, reply_markup=save_markup())
     
 
 bot.infinity_polling()
