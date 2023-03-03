@@ -1,5 +1,0 @@
-{
-    "token": "<YOUR_TOKEN>",
-    "chat_id": "<ADMIN_CHAT_ID>",
-    "db_path": "<ZETTEL_DB_PATH>"
-}
