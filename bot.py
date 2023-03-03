@@ -51,8 +51,6 @@ class NoteBot(telebot.TeleBot):
         return self.model.config
 
     def handle_expense(self, text):
-        if "" in text[:10]:
-            text = text[text.index(' ') + 1:]
         values = parse_expense(text)
         self.expense = values
         confirm_message = "Сумма: {}\nКатегория: {}\nКомментарий: {}".format(*values)
@@ -118,7 +116,7 @@ def start_message(message):
 def handle_voice(message):
     bot.chat_id = message.chat.id
     transcription = bot.transcribe_message(message)
-    if "трата" in transcription[:10]:
+    if "трат" in transcription[:15]:
         bot.handle_expense(transcription)
     else:
         bot.text += transcription + " "
@@ -128,10 +126,6 @@ def handle_voice(message):
 @bot.message_handler(content_types=["text"])
 def handle_text(message):
     bot.chat_id = message.chat.id
-    # if "трата" in message.text[:10]:
-    #     text = message.text
-    #     text = text[text.index(" ") + 1:]
-    #     bot.handle_expense(text)
     if message.text.startswith("/clear"):
         model.clear_context()
         bot.clear()

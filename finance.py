@@ -3,6 +3,8 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 def parse_expense(text):
+    if "трат" in text[:15]:
+        text = text[text.index('трат') + 4 + 2:]
     amount, category, *comment = text.split(' ') 
     amount = int(re.sub('\.', '', amount))
     comment = ' '.join(comment)
