@@ -13,11 +13,9 @@ def similarity(query, reference):
         f1 = 0
     return f1
 
-def get_most_similar(query, categories, return_value=False):
+def get_most_similar(query, categories):
     similarities = list(map(lambda cat: similarity(query, cat), categories))
-    if return_value: 
-        return categories[np.argmax(similarities)], max(similarities)
-    return categories[np.argmax(similarities)]
+    return categories[np.argmax(similarities)], max(similarities)
 
 
 class SheetWriter:
@@ -42,7 +40,9 @@ class SheetWriter:
             comment = ' '.join(comment)
 
             if category not in self.categories:
-                category = get_most_similar(category, self.categories)
+                category, similarity = get_most_similar(category, self.categories)
+                if similarity < 0.6:
+                    raise ValueError
         except ValueError:
             words = text.strip().split(' ')
 
@@ -50,7 +50,7 @@ class SheetWriter:
             amount_ind = np.argmax(list(map(len, amount_candidates)))
             amount = int(amount_candidates[amount_ind])
 
-            similarity_scores = [get_most_similar(w, self.categories, True) for w in words]
+            similarity_scores = [get_most_similar(w, self.categories) for w in words]
             category_ind = np.argmax(list(map(lambda x: x[1], similarity_scores)))
             category = similarity_scores[category_ind][0]
 
