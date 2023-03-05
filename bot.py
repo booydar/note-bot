@@ -9,7 +9,7 @@ from transcribe import ogg2wav, transcribe_audio
 from parse import parse_message
 
 from neural import Model
-from finance import SheetWriter, parse_expense
+from finance import SheetWriter
 
 class NoteBot(telebot.TeleBot):
     def __init__(self, cred_path="config/telegram.json"):
@@ -51,7 +51,7 @@ class NoteBot(telebot.TeleBot):
         return self.model.config
 
     def handle_expense(self, text):
-        values = parse_expense(text)
+        values = sheet_writer.parse_expense(text)
         self.expense = values
         confirm_message = "Сумма: {}\nКатегория: {}\nКомментарий: {}".format(*values)
         self.send_message(self.chat_id, confirm_message, reply_markup=expense_markup())
