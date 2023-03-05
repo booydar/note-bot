@@ -41,7 +41,7 @@ class SheetWriter:
 
             if category not in self.categories:
                 category, similarity = get_most_similar(category, self.categories)
-                if similarity < 0.6:
+                if similarity < 0.85:
                     raise ValueError
         except ValueError:
             words = text.strip().split(' ')
