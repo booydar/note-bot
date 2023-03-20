@@ -5,7 +5,7 @@ import json
 import random
 import telebot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
-from transcribe import ogg2wav, transcribe_audio
+from transcribe import ogg2wav, transcribe_audio, Punctuator
 from parse import parse_message
 
 from neural import Model
@@ -33,9 +33,10 @@ class NoteBot(telebot.TeleBot):
             new_file.write(voice_file)
 
         wav_path = ogg2wav("tmp.ogg")
-        transcription = transcribe_audio(wav_path, self.lang)
+        raw = transcribe_audio(wav_path, self.lang)
         os.system("rm tmp.*")
-        return transcription
+        punctuated = punct.apply(raw)
+        return raw, punctuated
     
     def save_text(self):
         dt = str(datetime.datetime.now())
@@ -61,8 +62,10 @@ class NoteBot(telebot.TeleBot):
 
 
 bot = NoteBot()
-sheet_writer = SheetWriter()
 model = Model()
+
+sheet_writer = SheetWriter()
+punct = Punctuator()
 
 def expense_markup():
     markup = InlineKeyboardMarkup()
@@ -75,8 +78,9 @@ def voice_markup():
     markup.row_width = 3
     markup.add(InlineKeyboardButton("В расходы", callback_data="parse_expense"),
                InlineKeyboardButton("В заметки", callback_data="save_note"),
+               InlineKeyboardButton("Ответ", callback_data="answer"),
                InlineKeyboardButton("+тэг", callback_data="hashtag"),
-               InlineKeyboardButton("Ответ", callback_data="answer"))
+               InlineKeyboardButton("-пунктуация", callback_data="del_punct"))
     return markup
 
 
@@ -99,6 +103,9 @@ def callback_query(call):
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
         bot.send_message(bot.chat_id, "Введи название тега")
+    elif call.data == "del_punct":
+        bot.text = bot.text_raw
+        bot.send_message(bot.chat_id, bot.text, reply_markup=voice_markup())
     elif call.data == "answer":
         answer = model.answer(bot.text)
         bot.send_message(bot.chat_id, answer)
@@ -115,12 +122,14 @@ def start_message(message):
 @bot.message_handler(content_types=["voice"])
 def handle_voice(message):
     bot.chat_id = message.chat.id
-    transcription = bot.transcribe_message(message)
-    if "трат" in transcription[:15]:
-        bot.handle_expense(transcription)
+    raw, punctuated = bot.transcribe_message(message)
+    if "трат" in raw[:15]:
+        bot.handle_expense(raw)
     else:
-        bot.text += transcription + " "
-        bot.send_message(message.chat.id, transcription, reply_markup=voice_markup())
+        bot.text_raw = bot.text
+        bot.text_raw += raw + " "
+        bot.text += punctuated + " "
+        bot.send_message(message.chat.id, punctuated, reply_markup=voice_markup())
 
 
 @bot.message_handler(content_types=["text"])
