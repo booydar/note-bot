@@ -27,7 +27,4 @@ class Punctuator:
         self.model = imp.load_pickle("te_model", "model")
 
     def apply(self, text, lang='ru'):
-        # print('raw text: ', text)
-        # print('enhanced: ', self.model.enhance_text(text, lang))
-        text = text[0].lower() + text[1:]
-        return self.model.enhance_text(text, lang)
+        return self.model.enhance_text(text.lower(), lang)
