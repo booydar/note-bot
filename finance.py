@@ -31,8 +31,10 @@ class SheetWriter:
         sheet.update(f"B{write_row_ind}:D{write_row_ind}", [[amount, category, comment]])
 
     def parse_expense(self, text):
-        if "трат" in text[:15]:
+        if "трат" in text[:15].lower():
             text = text[text.index('трат') + 4 + 2:]
+        elif "расход" in text[:15].lower():
+            text = text[text.index('расход') + 6 + 2:]
 
         try:
             amount, category, *comment = text.split(' ')
