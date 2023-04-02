@@ -10,6 +10,7 @@ from parse import parse_message
 
 from neural import Model
 from finance import SheetWriter
+from thoughts import ThoughtManager
 
 class NoteBot(telebot.TeleBot):
     def __init__(self, cred_path="config/telegram.json"):
@@ -63,7 +64,7 @@ class NoteBot(telebot.TeleBot):
 
 bot = NoteBot()
 model = Model()
-
+tm = ThoughtManager()
 sheet_writer = SheetWriter()
 punct = Punctuator()
 
@@ -80,7 +81,8 @@ def voice_markup():
                InlineKeyboardButton("В заметки", callback_data="save_note"),
                InlineKeyboardButton("Ответ", callback_data="answer"),
                InlineKeyboardButton("+тэг", callback_data="hashtag"),
-               InlineKeyboardButton("-пунктуация", callback_data="del_punct"))
+               InlineKeyboardButton("-пунктуация", callback_data="del_punct"),
+               InlineKeyboardButton("Мысли", callback_data="get_thoughts"))
     return markup
 
 
@@ -90,6 +92,8 @@ def callback_query(call):
         if str(bot.chat_id) == str(bot.admin_chat_id):
             bot.save_text()
             bot.answer_callback_query(call.id, "Note saved")
+            tm.index_path = None
+            tm.init_thoughts()
         else:
             bot.send_message(bot.chat_id, "Ты не Айдар, не буду ничего сохранять!")
             bot.send_message(bot.admin_chat_id, f"{bot.chat_id} пытается сохранить тебе заметку!")
@@ -109,6 +113,12 @@ def callback_query(call):
     elif call.data == "answer":
         answer = model.answer(bot.text)
         bot.send_message(bot.chat_id, answer)
+        bot.clear()
+    elif call.data == "get_thoughts":
+        thoughts, distances = tm.get_knn(bot.text, return_distances=True)
+        template = "{}\n{} [[{}]]\n\n"
+        thoughts = [template.format(t[0], round(float(d), 2), t[1]) for t, d in zip(thoughts, distances[0])]
+        bot.send_message(bot.chat_id, ''.join(thoughts))
         bot.clear()
 
 
@@ -153,6 +163,9 @@ def handle_text(message):
         if not history:
             history = 'История пуста.'
         bot.send_message(message.chat.id, history)
+    elif message.text.startswith("/reindex_thoughts"):
+        tm.index_path = None
+        tm.init_thoughts()
     elif bot.wait_value == "tag":
         bot.tags.append(message.text)
         bot.wait_value = False
