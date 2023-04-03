@@ -74,6 +74,15 @@ def expense_markup():
     markup.add(InlineKeyboardButton("Сохранить", callback_data="save_expense"))
     return markup
 
+def tag_markup():
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 3
+    markup.add(InlineKeyboardButton(bot.suggested_tags[0], callback_data=f"add_tag_{bot.suggested_tags[0]}"),
+               InlineKeyboardButton(bot.suggested_tags[1], callback_data=f"add_tag_{bot.suggested_tags[1]}"),
+               InlineKeyboardButton(bot.suggested_tags[2], callback_data=f"add_tag_{bot.suggested_tags[2]}")
+               )
+    return markup
+
 def voice_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 3
@@ -95,7 +104,7 @@ def callback_query(call):
             tm.index_path = None
             tm.init_thoughts()
         else:
-            bot.send_message(bot.chat_id, "Ты не Айдар, не буду ничего сохранять!")
+            bot.send_message(bot.chat_id, "Сохранение недоступно.")
             bot.send_message(bot.admin_chat_id, f"{bot.chat_id} пытается сохранить тебе заметку!")
     elif call.data == "parse_expense":
         bot.handle_expense(bot.text)
@@ -106,7 +115,12 @@ def callback_query(call):
     elif call.data == "hashtag":
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
-        bot.send_message(bot.chat_id, "Введи название тега")
+        bot.suggested_tags = tm.suggest_tags(bot.text)
+        bot.send_message(bot.chat_id, "Введи название тега", reply_markup=tag_markup())
+    elif call.data.startswith("add_tag_"):
+        tag_name = call.data.split('add_tag_')[1]
+        bot.tags.append(tag_name)
+        bot.wait_value = False
     elif call.data == "del_punct":
         bot.text = bot.text_raw
         bot.send_message(bot.chat_id, bot.text, reply_markup=voice_markup())
@@ -115,9 +129,9 @@ def callback_query(call):
         bot.send_message(bot.chat_id, answer)
         bot.clear()
     elif call.data == "get_thoughts":
-        thoughts, distances = tm.get_knn(bot.text, return_distances=True)
+        nearest = tm.get_knn(bot.text, return_distances=True)
         template = "{}\n{} [[{}]]\n\n"
-        thoughts = [template.format(t[0], round(float(d), 2), t[1]) for t, d in zip(thoughts, distances[0])]
+        thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
         bot.send_message(bot.chat_id, ''.join(thoughts))
         bot.clear()
 

@@ -3,6 +3,7 @@ import os
 import nltk
 import numpy as np
 import pandas as pd
+from collections import Counter
 import torch
 import faiss                 
 from transformers import AutoModel, AutoTokenizer
@@ -19,8 +20,7 @@ def clean(note):
     
     return note
 
-def clean_thought(note):
-    thought, name = note
+def clean_thought(thought):
     thought = re.sub(r'\(http\S+', '<LINK>', thought)
     thought = re.sub(r'http\S+', '<LINK>', thought)
 
@@ -34,14 +34,14 @@ def clean_thought(note):
         if len(linkless.split(' ')) < 2:
             return ''
     
-    return thought.strip(), name
+    return thought.strip()
 
 
-def filter_thought(note):
-    thought, name = note
+def filter_thought(thought):
     if not thought:
         return False
     
+    thought = str(thought)
     letters_only = re.sub('[^a-zA-Zа-яА-Я]', '',  thought)
     if len(letters_only) < 10:
         return False
@@ -51,6 +51,12 @@ def filter_thought(note):
         return False
     
     return True
+
+
+def find_tags(note):
+    tags = re.findall("\B(\#[a-zA-Z]+(\n|\ ))", note)
+    tags = [t.split(s)[0][1:] for (t, s) in tags]
+    return tuple(tags)
 
 
 def parse_note_db(db_path, len_thr):
@@ -75,7 +81,8 @@ def parse_note_db(db_path, len_thr):
         if len(note) < len_thr:
             continue
         cleaned_note = clean(note)
-        note_dict = {'name': fn.split('.md')[0], 'path':filepath, 'note':[note], 'cleaned_note': [cleaned_note], }#'tags': ', '.join(tags)}
+        tags = find_tags(note)
+        note_dict = {'name': fn.split('.md')[0], 'path':filepath, 'note':[note], 'cleaned_note': [cleaned_note], 'tags': ', '.join(tags)}
         db_df = pd.concat([db_df, pd.DataFrame(note_dict)])
 
     note_dfs.append(db_df)
@@ -83,11 +90,17 @@ def parse_note_db(db_path, len_thr):
     return res_df
 
 
+def get_thoughts(note):
+    thoughts = [t for thought in re.split('\n|\t', note) for t in nltk.sent_tokenize(thought)]
+    cleaned_thoughts = list(map(clean_thought, thoughts))
+    filtered_thoughts = list(filter(filter_thought, cleaned_thoughts))
+    return filtered_thoughts
+
+
 class ThoughtManager:
     def __init__(self, db_path='/home/booydar/Documents/Sync/obsidian-db/', 
-                        # model_name='bert-base-multilingual-cased',
                         model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
-                        index_path=None,#'../index/thoughts.npy',
+                        index_path='../index/thoughts.npy',
                         device='cuda',
                         batch_size=32):
         self.init_model(model_name, device)
@@ -96,13 +109,13 @@ class ThoughtManager:
     
     def init_thoughts(self):
         self.note_db = parse_note_db(self.db_path, len_thr=40)
-        self.thoughts = self.extract_thoughts(self.note_db)
+        self.extract_thoughts()
         
         if self.index_path and os.path.exists(self.index_path):
             self.embeddings = np.load(self.index_path)
         else:
             self.index_path = "../index/thoughts.npy"
-            self.embeddings = self.embed(self.thoughts, self.batch_size)
+            self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
             np.save(self.index_path, self.embeddings)
         self.create_index(self.embeddings)
 
@@ -110,9 +123,8 @@ class ThoughtManager:
         text_embedding = self.embed([text])
 
         D, I = self.index.search(text_embedding, k)
-        nearest = [self.thoughts[i] for i in I[0]]
-        if return_distances:
-            return nearest, D
+        nearest = self.note_db.iloc[I[0]].copy()
+        nearest['distance'] = D[0]
         return nearest
 
     def create_index(self, emb_matrix):
@@ -141,18 +153,13 @@ class ThoughtManager:
         self.model.to(device)
         self.device = device
 
-    def extract_thoughts(self, db_df):
-        notes = list(zip(db_df.cleaned_note.values, db_df.name.values))
-        thoughts = list(map(lambda note: (re.split('\n|\t', note[0]), note[1]), notes))
+    def extract_thoughts(self):
+        thoughts = self.note_db.cleaned_note.apply(get_thoughts)
+        self.note_db['thoughts'] = thoughts
+        self.note_db = self.note_db.explode('thoughts').dropna(subset=['thoughts'])
 
-        thoughts = [(t, name) for (thought, name) in thoughts for t in thought]
-        thoughts = list(map(clean_thought, thoughts))
-        cleaned_thoughts = list(filter(len, thoughts))
-        filtered_thoughts = list(filter(filter_thought, cleaned_thoughts))
-
-        granularized_thoughts = [(nltk.sent_tokenize(t), n) for t, n in filtered_thoughts]
-        granularized_thoughts = [(t, name) for (thought, name) in granularized_thoughts for t in thought]
-
-        final_thoughts = list(filter(filter_thought, granularized_thoughts))
-        final_thoughts = list(map(clean_thought, final_thoughts))
-        return final_thoughts
+    def suggest_tags(self, text):
+        nearest = self.get_knn(text, 5)
+        all_tags = ', '.join(nearest.tags).split(', ')
+        suggested_tags = [t[0] for t in Counter(all_tags).most_common(3)]
+        return suggested_tags
