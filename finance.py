@@ -62,5 +62,5 @@ class SheetWriter:
 
     def get_categories(self):
         file = gspread.authorize(self.credentials) 
-        sheet = file.open('финансы').worksheets()[3]
+        sheet = file.open('финансы').worksheets()[2]
         return sheet.col_values(1)
