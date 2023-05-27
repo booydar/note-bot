@@ -66,8 +66,6 @@ class NoteBot(telebot.TeleBot):
 
 
 bot = NoteBot()
-# model = Model()
-# tm = ThoughtManager()
 sheet_writer = SheetWriter()
 punct = Punctuator()
 ms = MovieSaver()
@@ -155,12 +153,14 @@ def callback_query(call):
         else:
             bot.send_message(bot.chat_id, "Фильм не найден :(")
             bot.clear()
+            bot.answer_callback_query(call.id, "Film search ended")
     elif call.data == "get_rating":
         bot.send_message(bot.chat_id, "Введи оценку от 1 до 10", reply_markup=write_movie_markup())
         bot.wait_value = 'rating'
     elif call.data == "write_movie":
         ms.save(bot.movies[0], bot.rating, bot.type)
         bot.clear()
+        bot.answer_callback_query(call.id, "Film saved")
     elif call.data == "to_watchlist":
         ms.save(bot.movies[0], bot.rating, bot.type, 1)
         bot.clear()
