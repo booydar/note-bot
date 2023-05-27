@@ -100,7 +100,7 @@ def get_thoughts(note):
 class ThoughtManager:
     def __init__(self, db_path='/home/booydar/Documents/Sync/obsidian-db/', 
                         model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
-                        index_path='../index/thoughts.npy',
+                        index_path=None,
                         device='cuda',
                         batch_size=32):
         self.init_model(model_name, device)

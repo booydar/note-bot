@@ -10,6 +10,7 @@ from transcribe import ogg2wav, transcribe_audio, Punctuator
 from parse import parse_message
 
 from finance import SheetWriter
+from thoughts import ThoughtManager
 from movies import get_movies, MovieSaver
 
 class NoteBot(telebot.TeleBot):
@@ -49,9 +50,6 @@ class NoteBot(telebot.TeleBot):
             f.write(note)
         self.clear()
     
-    def get_config(self):
-        return self.model.config
-
     def handle_expense(self, text):
         values = sheet_writer.parse_expense(text)
         self.expense = values
@@ -69,6 +67,7 @@ bot = NoteBot()
 sheet_writer = SheetWriter()
 punct = Punctuator()
 ms = MovieSaver()
+tm = ThoughtManager()
 
 def expense_markup():
     markup = InlineKeyboardMarkup()
@@ -103,6 +102,7 @@ def voice_markup():
     markup.add(InlineKeyboardButton("В заметки", callback_data="save_note"),
                InlineKeyboardButton("В расходы", callback_data="parse_expense"),
                InlineKeyboardButton("В фильмы", callback_data="find_film"),
+               InlineKeyboardButton("Мысли", callback_data="get_thoughts"),
                InlineKeyboardButton("+тэг", callback_data="hashtag"))
     return markup
 
@@ -168,6 +168,12 @@ def callback_query(call):
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
         bot.send_message(bot.chat_id, "Введи название тега")
+    elif call.data == "get_thoughts":
+        nearest = tm.get_knn(bot.text, return_distances=True)
+        template = "{}\n{} [[{}]]\n\n"
+        thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
+        bot.send_message(bot.chat_id, ''.join(thoughts))
+        bot.clear()
 
 
 @bot.message_handler(commands=["start"])

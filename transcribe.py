@@ -4,9 +4,9 @@ from torch import package
 import speech_recognition as sr
 from pydub import AudioSegment
 
-MODEL_PATH = "../../models/v2_4lang_q.pt"
-sys.path.append('/root/movies/env_movies/lib/python3.9/site-packages/ffprobe')
-torch.backends.quantized.engine = 'qnnpack'
+MODEL_PATH = "../models/silero/v2_4lang_q.pt"
+sys.path.append('/home/booydar/Desktop/projects/tg_notebot/env_notebot/lib/python3.9/site-packages/ffprobe')
+# torch.backends.quantized.engine = 'qnnpack'
 
 def ogg2wav(ogg_path):
     sound = AudioSegment.from_ogg(ogg_path)
