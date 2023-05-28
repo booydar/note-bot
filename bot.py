@@ -128,19 +128,37 @@ def callback_query(call):
     elif call.data == "save_movie":
         bot.type = 'movie'
         bot.movies = get_movies(bot.text, year=bot.year, language='ru', type='movie')
-        movie = bot.movies[0]
-        name = movie.get('title', movie.get('name'))
-        year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
-        description = f"{name} ({year})\n{movie['overview'][:250]}..."
-        bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+        if len(bot.movies) == 0:
+            bot.send_message(bot.chat_id, "Фильм не найден :(")
+            bot.clear()
+            bot.answer_callback_query(call.id, "Film search ended")
+        else:
+            movie = bot.movies[0]
+            name = movie.get('title', movie.get('name'))
+            year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
+            description = f"{name} ({year})\n{movie['overview'][:250]}..."
+            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
+            with open('tmp.jpg', 'rb') as img:
+                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
+            os.system('rm -r tmp.jpg')
     elif call.data == "save_tv":
         bot.type = 'tv'
         bot.movies = get_movies(bot.text, year=bot.year, language='ru', type='tv')
-        movie = bot.movies[0]
-        name = movie.get('title', movie.get('name'))
-        year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
-        description = f"{name} ({year})\n{movie['overview'][:250]}..."
-        bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+        if len(bot.movies) == 0:
+            bot.send_message(bot.chat_id, "Фильм не найден :(")
+            bot.clear()
+            bot.answer_callback_query(call.id, "Film search ended")
+        else:
+            movie = bot.movies[0]
+            name = movie.get('title', movie.get('name'))
+            year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
+            description = f"{name} ({year})\n{movie['overview'][:250]}..."
+            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
+            with open('tmp.jpg', 'rb') as img:
+                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
+            os.system('rm -r tmp.jpg')
     elif call.data == "another_movie":
         bot.movies = bot.movies[1:]
         if len(bot.movies) > 0:
@@ -148,7 +166,11 @@ def callback_query(call):
             name = movie.get('title', movie.get('name'))
             year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
             description = f"{name} ({year})\n{movie['overview'][:250]}..."
-            bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
+            with open('tmp.jpg', 'rb') as img:
+                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
+            os.system('rm -r tmp.jpg')
         else:
             bot.send_message(bot.chat_id, "Фильм не найден :(")
             bot.clear()

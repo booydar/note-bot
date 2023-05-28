@@ -5,7 +5,7 @@ import tmdbsimple as tmdb
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-tmdb.API_KEY = "<TMDB_API_KEY>"
+tmdb.API_KEY = '<TMDB_API_KEY>'
 tmdb.REQUESTS_TIMEOUT = (2, 5)
 tmdb.REQUESTS_SESSION = requests.Session()
 
@@ -51,6 +51,7 @@ def get_info(film, type='movie'):
                 'актеры': ', '.join(actor),
                 'проюсер': ', '.join(producer), 
                 'студия': ', '.join([c['name'] for c in info['production_companies']]), 
+                'poster_path': info['poster_path']
                 }
     return film_info
 
