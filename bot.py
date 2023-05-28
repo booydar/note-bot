@@ -6,7 +6,7 @@ import random
 import pandas as pd
 import telebot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
-from transcribe import ogg2wav, transcribe_audio, Punctuator
+from transcribe import transcribe_audio, Punctuator
 from parse import parse_message
 
 from finance import SheetWriter
@@ -33,9 +33,8 @@ class NoteBot(telebot.TeleBot):
         with open("tmp.ogg", "wb") as new_file:
             new_file.write(voice_file)
 
-        wav_path = ogg2wav("tmp.ogg")
-        raw = transcribe_audio(wav_path, self.lang)
-        os.system("rm tmp.*")
+        raw = transcribe_audio("tmp.ogg", self.lang)
+        os.system("rm tmp.ogg")
         punctuated = punct.apply(raw)
         return raw, punctuated
     
