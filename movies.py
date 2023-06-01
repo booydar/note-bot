@@ -5,10 +5,6 @@ import tmdbsimple as tmdb
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-tmdb.API_KEY = "<TMDB_API_KEY>"
-tmdb.REQUESTS_TIMEOUT = (2, 5)
-tmdb.REQUESTS_SESSION = requests.Session()
-
 def get_movies(name, year=None, language=None, type='movie'):
     search = tmdb.Search()
     if type == 'movie':
@@ -51,12 +47,16 @@ def get_info(film, type='movie'):
                 'актеры': ', '.join(actor),
                 'проюсер': ', '.join(producer), 
                 'студия': ', '.join([c['name'] for c in info['production_companies']]), 
+                'poster_path': info['poster_path']
                 }
     return film_info
 
 columns = ['Your Rating', 'название', 'год', 'дата просмотра', 'дата выхода', 'Type', 'Name', 'Rating', 'TMDb ID', 'IMDb ID', 'режиссер', 'сценарист', 'проюсер', 'актеры', 'студия']
 class MovieSaver:
-    def __init__(self, cred_path="./config/gsheets.json"):
+    def __init__(self, cred_path, tmdb_api_key):
+        tmdb.API_KEY = tmdb_api_key
+        tmdb.REQUESTS_TIMEOUT = (2, 5)
+        tmdb.REQUESTS_SESSION = requests.Session()
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         self.credentials = ServiceAccountCredentials.from_json_keyfile_name(cred_path, scopes) 
 

@@ -1,32 +1,32 @@
 import sys
 import torch
 from torch import package
-import speech_recognition as sr
+from speech_recognition import Recognizer, AudioData
 from pydub import AudioSegment
 
-MODEL_PATH = "../models/silero/v2_4lang_q.pt"
-sys.path.append('/home/booydar/Desktop/projects/tg_notebot/env_notebot/lib/python3.9/site-packages/ffprobe')
 # torch.backends.quantized.engine = 'qnnpack'
 
-def ogg2wav(ogg_path):
-    sound = AudioSegment.from_ogg(ogg_path)
-    wav_path = ogg_path.split('.ogg')[0] + '.wav'
-    sound.export(wav_path, format="wav")
-    return wav_path
-
-
 def transcribe_audio(file_path, language="ru-RU"):
-    rec = sr.Recognizer()
-    with sr.AudioFile(file_path) as source:
-        audio = rec.record(source)
+    rec = Recognizer()
+    sound = AudioSegment.from_ogg(file_path)
+    raw_sound = sound.raw_data
+
+    sample_size = 50 * sound.frame_rate * 4
+    sample, raw_sound = raw_sound[:sample_size], raw_sound[sample_size:]
+    audio = AudioData(sample, sample_rate=sound.frame_rate, sample_width=sound.frame_width)
     transcription = rec.recognize_google(audio, language=language)
+
+    while len(raw_sound) > 0:
+        sample, raw_sound = raw_sound[:sample_size], raw_sound[sample_size:]
+        audio = AudioData(sample, sample_rate=sound.frame_rate, sample_width=sound.frame_width)
+        transcription += ' ' + rec.recognize_google(audio, language=language)
     return transcription
 
 
 class Punctuator:
-    def __init__(self):
+    def __init__(self, MODEL_PATH):
         imp = package.PackageImporter(MODEL_PATH)
         self.model = imp.load_pickle("te_model", "model")
 
     def apply(self, text, lang='ru'):
-        return self.model.enhance_text(text.lower(), lang)
+        return self.model.enhance_text(text.lower(), lang)        

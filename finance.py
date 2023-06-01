@@ -19,7 +19,7 @@ def get_most_similar(query, categories):
 
 
 class SheetWriter:
-    def __init__(self, cred_path="config/gsheets.json"):
+    def __init__(self, cred_path):
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         self.credentials = ServiceAccountCredentials.from_json_keyfile_name(cred_path, scopes) 
         self.categories = self.get_categories()

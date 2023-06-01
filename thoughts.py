@@ -98,10 +98,12 @@ def get_thoughts(note):
 
 
 class ThoughtManager:
-    def __init__(self, db_path='/home/booydar/Documents/Sync/obsidian-db/', 
-                        model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+    def __init__(self, db_path, 
+                        model_name='cointegrated/rubert-tiny',
+                        device='cpu',
+                        # model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+                        # device='cuda',
                         index_path=None,
-                        device='cuda',
                         batch_size=32):
         self.init_model(model_name, device)
         self.db_path, self.index_path, self.batch_size = db_path, index_path, batch_size
@@ -111,12 +113,7 @@ class ThoughtManager:
         self.note_db = parse_note_db(self.db_path, len_thr=40)
         self.extract_thoughts()
         
-        if self.index_path and os.path.exists(self.index_path):
-            self.embeddings = np.load(self.index_path)
-        else:
-            self.index_path = "../index/thoughts.npy"
-            self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
-            np.save(self.index_path, self.embeddings)
+        self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
         self.create_index(self.embeddings)
 
     def get_knn(self, text, k=5, return_distances=False):
@@ -163,5 +160,5 @@ class ThoughtManager:
         nearest = self.get_knn(text, 5)
         all_tags = ', '.join(nearest.tags).split(', ')
         all_tags = list(filter(lambda x: x not in drop_tags, all_tags))
-        suggested_tags = [t[0] for t in Counter(all_tags).most_common(3)]
+        suggested_tags = [t[0] for t in Counter(all_tags).most_common(4)]
         return suggested_tags
