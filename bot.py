@@ -1,11 +1,9 @@
 import os
-import re
 import sys
 import json
 import random
 import pandas as pd
 import telebot
-import datetime
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from transcribe import transcribe_audio, Punctuator
 from parse import parse_message
@@ -45,13 +43,11 @@ class NoteBot(telebot.TeleBot):
         return raw, punctuated
     
     def save_text(self):
-        dt = str(datetime.datetime.now())
-        dt_pfx = re.sub(r"[:]", "-", dt.split(".")[0])
-        sv_path = os.path.join(self.db_path, f"{dt_pfx}.md")
+        note_text, note_name = parse_message(self.text, self.tags)
+        sv_path = os.path.join(self.db_path, f"{note_name}.md")
         
-        note = parse_message(self.text, self.tags)
         with open(sv_path, "w") as f:
-            f.write(note)
+            f.write(note_text)
         self.clear()
         tm.init_thoughts()
 
@@ -82,12 +78,9 @@ def expense_markup():
 
 def tag_markup():
     markup = InlineKeyboardMarkup()
-    markup.row_width = 4
-    markup.add(InlineKeyboardButton('#'+bot.suggested_tags[0], callback_data=f"add_tag_{bot.suggested_tags[0]}"),
-               InlineKeyboardButton('#'+bot.suggested_tags[1], callback_data=f"add_tag_{bot.suggested_tags[1]}"),
-               InlineKeyboardButton('#'+bot.suggested_tags[2], callback_data=f"add_tag_{bot.suggested_tags[2]}"),
-               InlineKeyboardButton('#'+bot.suggested_tags[3], callback_data=f"add_tag_{bot.suggested_tags[3]}")
-               )
+    buttons = [InlineKeyboardButton('#'+bot.suggested_tags[i], callback_data=f"add_tag_{bot.suggested_tags[i]}") for i in range(len(bot.suggested_tags))]
+    markup.row_width = len(buttons)
+    markup.add(*buttons)
     return markup
 
 def film_tv_markup():

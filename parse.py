@@ -1,4 +1,7 @@
-TEMPLATE = "{}\n\n---\n{}\n\n---"
+import re
+import pytz
+import datetime
+TEMPLATE = "{}\n{}\n\n---\n{}\n\n---"
 FIRST_WORD_TRIGGERS = {"idea": "ideas", "project": "project", "life": "life", "diary": "diary", "идея": "ideas", "проект": "project", "жизнь": "life", "дневник": "diary"}
 
 def parse_message(message, tags=[]):
@@ -15,5 +18,11 @@ def parse_message(message, tags=[]):
     if len(hashtags) == 1:
         hashtags.append("#random")
     
-    note = TEMPLATE.format(' '.join(hashtags), message)
-    return note
+    dt = str(datetime.datetime.now(pytz.timezone('Europe/Moscow')))
+    dt_pfx = re.sub(r"[:]", "-", dt.split(".")[0])
+    
+    note = TEMPLATE.format(' '.join(hashtags), dt_pfx, message)
+    name = message[:50]
+    if ' ' in name: 
+        name = name[:-name[::-1].index(' ') - 1]
+    return note, name
