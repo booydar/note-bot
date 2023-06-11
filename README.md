@@ -3,11 +3,7 @@
 A simple telegram bot for saving voice notes for zettelkasten.
 
 ---
-- add your API token to ```creds.txt```
-- run ```python bot.py```
+- add your API token and note database path to ```config.json```
+- ```pip install -r requirements.txt```
+- run bot: ```python bot.py```
 - send */start*
-- select language: En/Ru
-- send a voice message
-- save the transcription to a file
-  
-  note will be embedded with ```template.md```
