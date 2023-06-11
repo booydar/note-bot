@@ -10,10 +10,6 @@ from parse import parse_message
 
 from thoughts import ThoughtManager
 
-CONFIG_PATH = os.getenv("config")
-with open(os.path.join(CONFIG_PATH, 'config.json'), 'r') as f:
-    config = json.load(f)
-
 class NoteBot(telebot.TeleBot):
     def __init__(self, api_token, note_db_path):
         super().__init__(api_token)
@@ -57,8 +53,10 @@ class NoteBot(telebot.TeleBot):
         self.wait_value = None
         self.tags = []
 
-
+with open('config.json', 'r') as f:
+    config = json.load(f)
 bot = NoteBot(config['tg_api_token'], config['note_db_path'])
+tm = ThoughtManager(config['note_db_path'], model_name=config["embedding_model"])
 punct = Punctuator("./models/v2_4lang_q.pt")
 
 def expense_markup():
