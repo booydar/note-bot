@@ -8,22 +8,16 @@ from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from transcribe import transcribe_audio, Punctuator
 from parse import parse_message
 
-from finance import SheetWriter
-from movies import get_movies, MovieSaver
 from thoughts import ThoughtManager
 
-CONFIG_FOLDER = os.getenv("config")
-config_path = os.path.join(CONFIG_FOLDER, 'var.json')
-with open(config_path, 'r') as f:
+CONFIG_PATH = os.getenv("config")
+with open(os.path.join(CONFIG_PATH, 'config.json'), 'r') as f:
     config = json.load(f)
-    sys.path.append(config['ffprobe'])
-    gsheets_cred = os.path.join(CONFIG_FOLDER, 'gsheets.json')
 
 class NoteBot(telebot.TeleBot):
-    def __init__(self, api_token, note_db_path, admin_chat_id):
+    def __init__(self, api_token, note_db_path):
         super().__init__(api_token)
         self.db_path = note_db_path
-        self.admin_chat_id = admin_chat_id
         self.lang = "ru-RU"
         self.tags = []
         self.wait_value = False
@@ -64,11 +58,8 @@ class NoteBot(telebot.TeleBot):
         self.tags = []
 
 
-bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['admin_chat_id'])
-sheet_writer = SheetWriter(gsheets_cred)
-punct = Punctuator(config['punct_model'])
-ms = MovieSaver(gsheets_cred, config['tmdb_api_key'])
-tm = ThoughtManager(config['note_db_path'])
+bot = NoteBot(config['tg_api_token'], config['note_db_path'])
+punct = Punctuator("./models/v2_4lang_q.pt")
 
 def expense_markup():
     markup = InlineKeyboardMarkup()
@@ -83,33 +74,10 @@ def tag_markup():
     markup.add(*buttons)
     return markup
 
-def film_tv_markup():
-    markup = InlineKeyboardMarkup()
-    markup.row_width = 2
-    markup.add(InlineKeyboardButton("Фильм", callback_data="save_movie"),
-               InlineKeyboardButton("Сериал", callback_data="save_tv"))
-    return markup
-
-def check_movie_markup():
-    markup = InlineKeyboardMarkup()
-    markup.row_width = 3
-    markup.add(InlineKeyboardButton("Просмотрено", callback_data="get_rating"),
-               InlineKeyboardButton("На будущее", callback_data="to_watchlist"),
-               InlineKeyboardButton("Следующий", callback_data="another_movie"))
-    return markup
-
-def write_movie_markup():
-    markup = InlineKeyboardMarkup()
-    markup.row_width = 1
-    markup.add(InlineKeyboardButton("Сохранить", callback_data="write_movie"))
-    return markup
-
 def voice_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 3
     markup.add(InlineKeyboardButton("В заметки", callback_data="save_note"),
-               InlineKeyboardButton("В расходы", callback_data="parse_expense"),
-               InlineKeyboardButton("В фильмы", callback_data="find_film"),
                InlineKeyboardButton("Мысли", callback_data="get_thoughts"),
                InlineKeyboardButton("+тэг", callback_data="hashtag"))
     return markup
@@ -118,86 +86,8 @@ def voice_markup():
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     if call.data == "save_note":
-        if str(bot.chat_id) == str(bot.admin_chat_id):
-            bot.save_text()
-            bot.answer_callback_query(call.id, "Note saved")
-        else:
-            bot.answer_callback_query(call.id, "Not available")
-            bot.send_message(bot.admin_chat_id, f"{bot.chat_id} пытается сохранить тебе заметку!")
-        
-    elif call.data == "parse_expense":
-        bot.handle_expense(bot.text)
-    elif call.data == "save_expense":
-        if str(bot.chat_id) == str(bot.admin_chat_id):
-            sheet_writer.write_to_gsheet(*bot.expense)
-        bot.clear()
-        bot.answer_callback_query(call.id, "Expense saved")
-    elif call.data == "find_film":
-        bot.send_message(bot.chat_id, "Укажи год, если возможно.", reply_markup=film_tv_markup())
-        bot.year = None
-        bot.wait_value = 'year'
-    elif call.data == "save_movie":
-        bot.type = 'movie'
-        bot.movies = get_movies(bot.text, year=bot.year, language='ru', type='movie')
-        if len(bot.movies) == 0:
-            bot.send_message(bot.chat_id, "Фильм не найден :(")
-            bot.clear()
-            bot.answer_callback_query(call.id, "Film search ended")
-        else:
-            movie = bot.movies[0]
-            name = movie.get('title', movie.get('name'))
-            year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
-            description = f"{name} ({year})\n{movie['overview'][:250]}..."
-            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
-            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
-            with open('tmp.jpg', 'rb') as img:
-                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
-            os.system('rm -r tmp.jpg')
-    elif call.data == "save_tv":
-        bot.type = 'tv'
-        bot.movies = get_movies(bot.text, year=bot.year, language='ru', type='tv')
-        if len(bot.movies) == 0:
-            bot.send_message(bot.chat_id, "Фильм не найден :(")
-            bot.clear()
-            bot.answer_callback_query(call.id, "Film search ended")
-        else:
-            movie = bot.movies[0]
-            name = movie.get('title', movie.get('name'))
-            year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
-            description = f"{name} ({year})\n{movie['overview'][:250]}..."
-            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
-            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
-            with open('tmp.jpg', 'rb') as img:
-                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
-            os.system('rm -r tmp.jpg')
-    elif call.data == "another_movie":
-        bot.movies = bot.movies[1:]
-        if len(bot.movies) > 0:
-            movie = bot.movies[0]
-            name = movie.get('title', movie.get('name'))
-            year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
-            description = f"{name} ({year})\n{movie['overview'][:250]}..."
-            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
-            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
-            with open('tmp.jpg', 'rb') as img:
-                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
-            os.system('rm -r tmp.jpg')
-        else:
-            bot.send_message(bot.chat_id, "Фильм не найден :(")
-            bot.clear()
-            bot.answer_callback_query(call.id, "Film search ended")
-    elif call.data == "get_rating":
-        bot.send_message(bot.chat_id, "Введи оценку от 1 до 10", reply_markup=write_movie_markup())
-        bot.wait_value = 'rating'
-    elif call.data == "write_movie":
-        if str(bot.chat_id) == str(bot.admin_chat_id):
-            ms.save(bot.movies[0], bot.rating, bot.type)
-        bot.clear()
-        bot.answer_callback_query(call.id, "Film saved")
-    elif call.data == "to_watchlist":
-        if str(bot.chat_id) == str(bot.admin_chat_id):
-            ms.save(bot.movies[0], bot.rating, bot.type, 1)
-        bot.clear()
+        bot.save_text()
+        bot.answer_callback_query(call.id, "Note saved")        
     elif call.data == "hashtag":
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
@@ -243,16 +133,6 @@ def handle_text(message):
         bot.send_message(message.chat.id, random.randint(0, 100))
     elif message.text.startswith("/yes_or_no"):
         bot.send_message(message.chat.id, random.choice(("yes", "no")))
-    elif bot.wait_value == "year":
-        try:
-            bot.year = int(message.text)
-        except ValueError:
-            pass
-    elif bot.wait_value == "rating":
-        try:
-            bot.rating = int(message.text)
-        except ValueError:
-            pass
     elif bot.wait_value == "tag":
         bot.tags.append(message.text)
     else:
