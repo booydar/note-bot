@@ -133,7 +133,7 @@ class ThoughtManager:
         embeddings = []
         for i in range(0, len(texts), batch_size):
             text_batch = texts[i:i+batch_size]
-            tokenized = self.tokenizer.batch_encode_plus(text_batch, return_tensors='pt', padding='max_length')
+            tokenized = self.tokenizer.batch_encode_plus(text_batch, return_tensors='pt', padding='max_length', truncation=True)
             for t in tokenized:
                 tokenized[t] = tokenized[t].to(self.device)
             with torch.no_grad():
