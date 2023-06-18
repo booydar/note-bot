@@ -111,10 +111,11 @@ class ThoughtManager:
     
     def init_thoughts(self):
         self.note_db = parse_note_db(self.db_path, len_thr=40)
-        self.extract_thoughts()
-        
-        self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
-        self.create_index(self.embeddings)
+        if self.note_db.shape[0] > 0:
+            self.extract_thoughts()
+            
+            self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
+            self.create_index(self.embeddings)
 
     def get_knn(self, text, k=5, return_distances=False):
         text_embedding = self.embed([text])

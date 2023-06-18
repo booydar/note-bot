@@ -1,5 +1,6 @@
 {
     "tg_api_token": "<YOUR TELEGRAM TOKEN>",
     "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-    "note_db_path": "../notes/"
+    "note_db_path": "../notes/",
+    "language": "ru-RU"
 }

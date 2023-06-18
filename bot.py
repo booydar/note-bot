@@ -11,14 +11,13 @@ from parse import parse_message
 from thoughts import ThoughtManager
 
 class NoteBot(telebot.TeleBot):
-    def __init__(self, api_token, note_db_path):
+    def __init__(self, api_token, note_db_path, lang='ru-RU'):
         super().__init__(api_token)
         self.db_path = note_db_path
-        self.lang = "ru-RU"
+        self.lang = lang
         self.tags = []
         self.wait_value = False
         self.text = ""
-        self.rating = None
 
     def transcribe_message(self, message):
         self.tags = []
@@ -41,29 +40,18 @@ class NoteBot(telebot.TeleBot):
         self.clear()
         tm.init_thoughts()
 
-    def handle_expense(self, text):
-        values = sheet_writer.parse_expense(text)
-        self.expense = values
-        confirm_message = "Сумма: {}\nКатегория: {}\nКомментарий: {}".format(*values)
-        self.send_message(self.chat_id, confirm_message, reply_markup=expense_markup())
-
     def clear(self):
         self.text = ''
-        self.movie = self.rating = self.year = None
         self.wait_value = None
         self.tags = []
+        self.nearest = None
 
 with open('config.json', 'r') as f:
     config = json.load(f)
-bot = NoteBot(config['tg_api_token'], config['note_db_path'])
+bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['language'])
 tm = ThoughtManager(config['note_db_path'], model_name=config["embedding_model"])
 punct = Punctuator("./models/v2_4lang_q.pt")
 
-def expense_markup():
-    markup = InlineKeyboardMarkup()
-    markup.row_width = 1
-    markup.add(InlineKeyboardButton("Сохранить", callback_data="save_expense"))
-    return markup
 
 def tag_markup():
     markup = InlineKeyboardMarkup()
@@ -76,8 +64,15 @@ def voice_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 3
     markup.add(InlineKeyboardButton("В заметки", callback_data="save_note"),
-               InlineKeyboardButton("Мысли", callback_data="get_thoughts"),
+               InlineKeyboardButton("Похожее", callback_data="get_thoughts"),
                InlineKeyboardButton("+тэг", callback_data="hashtag"))
+    return markup
+
+def thoughts_markup():
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 1
+    markup.add(InlineKeyboardButton("Следующие", callback_data="next_thoughts"),
+                InlineKeyboardButton("Закончить", callback_data="clear"))
     return markup
 
 
@@ -85,7 +80,8 @@ def voice_markup():
 def callback_query(call):
     if call.data == "save_note":
         bot.save_text()
-        bot.answer_callback_query(call.id, "Note saved")        
+        bot.answer_callback_query(call.id, "Note saved")    
+        tm.init_thoughts()    
     elif call.data == "hashtag":
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
@@ -95,10 +91,23 @@ def callback_query(call):
         tag_name = call.data.split('add_tag_')[1]
         bot.tags.append(tag_name)
     elif call.data == "get_thoughts":
-        nearest = tm.get_knn(bot.text, return_distances=True)
+        bot.nearest = tm.get_knn(bot.text, k=50, return_distances=True)
+        nearest = bot.nearest[:5]
         template = "{}\n{} [[{}]]\n\n"
         thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
-        bot.send_message(bot.chat_id, ''.join(thoughts))
+        bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
+    elif call.data == "next_thoughts":
+        bot.nearest = bot.nearest[5:]
+        if len(bot.nearest) == 0:
+            bot.send_message(bot.chat_id, "Конец")
+            bot.clear()
+        else:
+            nearest = bot.nearest[:5]
+            template = "{}\n{} [[{}]]\n\n"
+            thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
+            bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
+        
+    elif call.data == "clear":
         bot.clear()
 
 
