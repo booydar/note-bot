@@ -114,6 +114,13 @@ def voice_markup():
                InlineKeyboardButton("+тэг", callback_data="hashtag"))
     return markup
 
+def thoughts_markup():
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 1
+    markup.add(InlineKeyboardButton("Следующие", callback_data="next_thoughts"),
+                InlineKeyboardButton("Закончить", callback_data="clear"))
+    return markup
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
@@ -145,10 +152,8 @@ def callback_query(call):
             bot.answer_callback_query(call.id, "Film search ended")
         else:
             movie = bot.movies[0]
-            name = movie.get('title', movie.get('name'))
-            year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
-            description = f"{name} ({year})\n{movie['overview'][:250]}..."
-            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+            info = get_info(movie)
+            description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
                 bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
@@ -162,10 +167,8 @@ def callback_query(call):
             bot.answer_callback_query(call.id, "Film search ended")
         else:
             movie = bot.movies[0]
-            name = movie.get('title', movie.get('name'))
-            year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
-            description = f"{name} ({year})\n{movie['overview'][:250]}..."
-            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+            info = get_info(movie)
+            description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
                 bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
@@ -174,10 +177,8 @@ def callback_query(call):
         bot.movies = bot.movies[1:]
         if len(bot.movies) > 0:
             movie = bot.movies[0]
-            name = movie.get('title', movie.get('name'))
-            year = pd.to_datetime(movie.get('release_date', movie.get('first_air_date'))).year
-            description = f"{name} ({year})\n{movie['overview'][:250]}..."
-            # bot.send_message(bot.chat_id, description, reply_markup=check_movie_markup())
+            info = get_info(movie)
+            description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
                 bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
@@ -207,10 +208,23 @@ def callback_query(call):
         tag_name = call.data.split('add_tag_')[1]
         bot.tags.append(tag_name)
     elif call.data == "get_thoughts":
-        nearest = tm.get_knn(bot.text, return_distances=True)
+        bot.nearest = tm.get_knn(bot.text, k=25, return_distances=True)
+        nearest = bot.nearest[:5]
         template = "{}\n{} [[{}]]\n\n"
         thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
-        bot.send_message(bot.chat_id, ''.join(thoughts))
+        bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
+    elif call.data == "next_thoughts":
+        bot.nearest = bot.nearest[5:]
+        if len(bot.nearest) == 0:
+            bot.send_message(bot.chat_id, "Конец")
+            bot.clear()
+        else:
+            nearest = bot.nearest[:5]
+            template = "{}\n{} [[{}]]\n\n"
+            thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
+            bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
+        
+    elif call.data == "clear":
         bot.clear()
 
 
