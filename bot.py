@@ -16,6 +16,7 @@ class NoteBot(telebot.TeleBot):
         self.db_path = note_db_path
         self.lang = lang
         self.tags = []
+        self.links = []
         self.wait_value = False
         self.text = ""
 
@@ -32,7 +33,7 @@ class NoteBot(telebot.TeleBot):
         return raw, punctuated
     
     def save_text(self):
-        note_text, note_name = parse_message(self.text, self.tags)
+        note_text, note_name = parse_message(self.text, self.tags, self.links)
         sv_path = os.path.join(self.db_path, f"{note_name}.md")
         
         with open(sv_path, "w") as f:
@@ -44,7 +45,7 @@ class NoteBot(telebot.TeleBot):
         self.text = ''
         self.wait_value = None
         self.tags = []
-        self.nearest = None
+        self.links = []
 
 with open('config.json', 'r') as f:
     config = json.load(f)
@@ -70,9 +71,10 @@ def voice_markup():
 
 def thoughts_markup():
     markup = InlineKeyboardMarkup()
-    markup.row_width = 1
-    markup.add(InlineKeyboardButton("Следующие", callback_data="next_thoughts"),
-                InlineKeyboardButton("Закончить", callback_data="clear"))
+    markup.row_width = 5
+    buttons = [InlineKeyboardButton(str(i+1), callback_data=f"add_link_{i}") for i in range(5)] 
+    buttons += [InlineKeyboardButton("Следующие", callback_data="next_thoughts"), InlineKeyboardButton("Закончить", callback_data="clear")]
+    markup.add(*buttons)
     return markup
 
 
@@ -90,8 +92,11 @@ def callback_query(call):
     elif call.data.startswith("add_tag_"):
         tag_name = call.data.split('add_tag_')[1]
         bot.tags.append(tag_name)
+    elif call.data.startswith("add_link_"):
+        link = int(call.data.split('add_link_')[1])
+        bot.links.append(bot.nearest.name.values[link])
     elif call.data == "get_thoughts":
-        bot.nearest = tm.get_knn(bot.text, k=50, return_distances=True)
+        bot.nearest = tm.get_knn(bot.text, k=25, return_distances=True)
         nearest = bot.nearest[:5]
         template = "{}\n{} [[{}]]\n\n"
         thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]

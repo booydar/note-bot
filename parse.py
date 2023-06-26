@@ -4,7 +4,7 @@ import datetime
 TEMPLATE = "{}\n{}\n\n---\n{}\n\n---"
 FIRST_WORD_TRIGGERS = {"idea": "ideas", "project": "project", "life": "life", "diary": "diary", "идея": "ideas", "проект": "project", "жизнь": "life", "дневник": "diary"}
 
-def parse_message(message, tags=[]):
+def parse_message(message, tags=[], links=[]):
     first_word = message.split(' ')[0].strip().lower()
     hashtags = ["#voice"]
     
@@ -22,6 +22,10 @@ def parse_message(message, tags=[]):
     dt_pfx = re.sub(r"[:]", "-", dt.split(".")[0])
     
     note = TEMPLATE.format(' '.join(hashtags), dt_pfx, message)
+
+    if len(links) > 0:
+        note = note[:-3] + '\n'.join([f"[[{l}]]" for l in links]) +  "\n\n---"
+
     name = message[:50]
     if ' ' in name: 
         name = name[:-name[::-1].index(' ') - 1]
