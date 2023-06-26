@@ -50,7 +50,7 @@ class NoteBot(telebot.TeleBot):
         with open(sv_path, "w") as f:
             f.write(note_text)
         self.clear()
-        tm.init_thoughts()
+        tm.parse_thoughts()
 
     def handle_expense(self, text):
         values = sheet_writer.parse_expense(text)
