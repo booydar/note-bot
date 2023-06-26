@@ -99,23 +99,42 @@ def get_thoughts(note):
 
 class ThoughtManager:
     def __init__(self, db_path, 
-                        model_name='cointegrated/rubert-tiny',
+                        model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
                         device='cpu',
-                        # model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+                        # model_name='cointegrated/rubert-tiny',
                         # device='cuda',
-                        index_path=None,
+                        save_path='../saved',
                         batch_size=32):
         self.init_model(model_name, device)
-        self.db_path, self.index_path, self.batch_size = db_path, index_path, batch_size
-        self.init_thoughts()
+        self.db_path, self.save_path, self.batch_size = db_path, save_path, batch_size
+        self.parse_thoughts()
     
-    def init_thoughts(self):
-        self.note_db = parse_note_db(self.db_path, len_thr=40)
-        if self.note_db.shape[0] > 0:
-            self.extract_thoughts()
-            
-            self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
-            self.create_index(self.embeddings)
+    def parse_thoughts(self):
+        parsed = parse_note_db(self.db_path, len_thr=40)
+        parsed = self.extract_thoughts(parsed)
+
+        df_path = os.path.join(self.save_path, 'thoughts.csv')
+        if os.path.exists(df_path):
+            loaded = pd.read_csv(df_path, sep=';')
+            embeddings = np.load(os.path.join(self.save_path, 'embeddings.npy'))
+            if parsed.shape[0] == loaded.shape[0]:
+                self.note_db = loaded
+                self.embeddings = embeddings
+            elif parsed.shape[0] > loaded.shape[0]:
+                new_thoughts = parsed[parsed.name.apply(lambda x: x not in set(loaded.name.values))]
+                self.note_db = pd.concat((loaded, new_thoughts))
+                new_embeddings = self.embed(list(new_thoughts.thoughts.values))
+                self.embeddings = np.concatenate((embeddings, new_embeddings), axis=0)
+            else:
+                self.note_db = loaded[loaded.name.apply(lambda x: x in set(parsed.name.values))]
+                self.embeddings = embeddings[loaded.name.apply(lambda x: x in set(parsed.name.values))]
+        else:          
+            if parsed.shape[0] > 0:
+                self.note_db = parsed
+                self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
+        
+        self.create_index(self.embeddings)
+        self.save()
 
     def get_knn(self, text, k=5, return_distances=False):
         text_embedding = self.embed([text])
@@ -151,10 +170,10 @@ class ThoughtManager:
         self.model.to(device)
         self.device = device
 
-    def extract_thoughts(self):
-        thoughts = self.note_db.cleaned_note.apply(get_thoughts)
-        self.note_db['thoughts'] = thoughts
-        self.note_db = self.note_db.explode('thoughts').dropna(subset=['thoughts'])
+    def extract_thoughts(self, note_db):
+        thoughts = note_db.cleaned_note.apply(get_thoughts)
+        note_db['thoughts'] = thoughts
+        return note_db.explode('thoughts').dropna(subset=['thoughts'])
 
     def suggest_tags(self, text):
         drop_tags = {'', 'voice'}
@@ -163,3 +182,10 @@ class ThoughtManager:
         all_tags = list(filter(lambda x: x not in drop_tags, all_tags))
         suggested_tags = [t[0] for t in Counter(all_tags).most_common(4)]
         return suggested_tags
+    
+    def save(self):
+        if not os.path.exists(self.save_path):
+            os.system(f'mkdir {self.save_path}')
+
+        self.note_db.to_csv(os.path.join(self.save_path, 'thoughts.csv'), sep=';', index=False)
+        np.save(os.path.join(self.save_path, 'embeddings.npy'), self.embeddings)

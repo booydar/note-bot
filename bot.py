@@ -39,7 +39,7 @@ class NoteBot(telebot.TeleBot):
         with open(sv_path, "w") as f:
             f.write(note_text)
         self.clear()
-        tm.init_thoughts()
+        tm.parse_thoughts()
 
     def clear(self):
         self.text = ''
@@ -82,8 +82,8 @@ def thoughts_markup():
 def callback_query(call):
     if call.data == "save_note":
         bot.save_text()
+        tm.parse_thoughts()    
         bot.answer_callback_query(call.id, "Note saved")    
-        tm.init_thoughts()    
     elif call.data == "hashtag":
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
