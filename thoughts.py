@@ -7,6 +7,7 @@ from collections import Counter
 import torch
 import faiss                 
 from transformers import AutoModel, AutoTokenizer
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def clean(note):
     # remove zero-links
