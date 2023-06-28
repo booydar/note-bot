@@ -155,7 +155,7 @@ def callback_query(call):
             bot.answer_callback_query(call.id, "Film search ended")
         else:
             movie = bot.movies[0]
-            info = get_info(movie)
+            info = get_info(movie, type=bot.type)
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
@@ -170,7 +170,7 @@ def callback_query(call):
             bot.answer_callback_query(call.id, "Film search ended")
         else:
             movie = bot.movies[0]
-            info = get_info(movie)
+            info = get_info(movie, type=bot.type)
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
@@ -180,7 +180,7 @@ def callback_query(call):
         bot.movies = bot.movies[1:]
         if len(bot.movies) > 0:
             movie = bot.movies[0]
-            info = get_info(movie)
+            info = get_info(movie, type=bot.type)
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
