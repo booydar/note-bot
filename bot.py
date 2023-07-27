@@ -214,7 +214,7 @@ def callback_query(call):
         link = int(call.data.split('add_link_')[1])
         bot.links.append(bot.nearest.name.values[link])
     elif call.data == "get_thoughts":
-        bot.nearest = tm.get_knn(bot.text, k=25, return_distances=True)
+        bot.nearest = tm.get_nearest(bot.text, k=25)
         nearest = bot.nearest[:5]
         template = "{}\n{} [[{}]]\n\n"
         thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
