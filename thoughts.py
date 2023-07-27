@@ -137,8 +137,13 @@ class ThoughtManager:
         self.create_index(self.embeddings)
         self.save()
 
-    def get_knn(self, text, k=5, return_distances=False):
-        text_embedding = self.embed([text])
+    def get_nearest(self, note, k):
+        thoughts = get_thoughts(clean(note))
+        nearest = pd.concat([self.get_knn(t, k=k) for t in thoughts])
+        return nearest.sort_values('distance')
+
+    def get_knn(self, thought, k=5):
+        text_embedding = self.embed([thought])
 
         D, I = self.index.search(text_embedding, k)
         nearest = self.note_db.iloc[I[0]].copy()
