@@ -3,6 +3,7 @@ import os
 import nltk
 import numpy as np
 import pandas as pd
+from threading import Timer
 from collections import Counter
 import torch
 import faiss                 
@@ -102,15 +103,15 @@ class ThoughtManager:
     def __init__(self, db_path, 
                         model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
                         device='cpu',
-                        # model_name='cointegrated/rubert-tiny',
-                        # device='cuda',
                         save_path='../saved',
                         batch_size=32):
         self.init_model(model_name, device)
         self.db_path, self.save_path, self.batch_size = db_path, save_path, batch_size
         self.parse_thoughts()
+        self.start_timer()
     
     def parse_thoughts(self):
+        print("### Parsing notes ###")
         parsed = parse_note_db(self.db_path, len_thr=40)
         parsed = self.extract_thoughts(parsed)
 
@@ -136,10 +137,15 @@ class ThoughtManager:
         
         self.create_index(self.embeddings)
         self.save()
+        print("### Finished parsing ###")
 
     def get_nearest(self, note, k):
         thoughts = get_thoughts(clean(note))
-        nearest = pd.concat([self.get_knn(t, k=k) for t in thoughts])
+        nearest = [self.get_knn(t, k=k) for t in thoughts]
+        if len(nearest) > 0:
+            nearest = pd.concat(nearest)
+        else: 
+            nearest = self.get_knn(clean(note), k=k)
         return nearest.sort_values('distance')
 
     def get_knn(self, thought, k=5):
@@ -195,3 +201,12 @@ class ThoughtManager:
 
         self.note_db.to_csv(os.path.join(self.save_path, 'thoughts.csv'), sep=';', index=False)
         np.save(os.path.join(self.save_path, 'embeddings.npy'), self.embeddings)
+    
+    def start_timer(self):
+        class RepeatTimer(Timer):
+            def run(self):
+                while not self.finished.wait(self.interval):
+                    self.function(*self.args, **self.kwargs)
+
+        self.timer = RepeatTimer(3600, self.parse_thoughts())
+        self.timer.start()
