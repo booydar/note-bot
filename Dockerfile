@@ -13,4 +13,4 @@ RUN apt-get install -y ffmpeg
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m nltk.downloader punkt
 
-CMD ["python", "./bot.py"]
+CMD ["python", "-u", "./bot.py"]
