@@ -119,21 +119,25 @@ class ThoughtManager:
         if os.path.exists(df_path):
             loaded = pd.read_csv(df_path, sep=';')
             embeddings = np.load(os.path.join(self.save_path, 'embeddings.npy'))
-            if parsed.shape[0] == loaded.shape[0]:
-                self.note_db = loaded
-                self.embeddings = embeddings
-            elif parsed.shape[0] > loaded.shape[0]:
-                new_thoughts = parsed[parsed.name.apply(lambda x: x not in set(loaded.name.values))]
-                self.note_db = pd.concat((loaded, new_thoughts))
-                new_embeddings = self.embed(list(new_thoughts.thoughts.values))
-                self.embeddings = np.concatenate((embeddings, new_embeddings), axis=0)
-            else:
-                self.note_db = loaded[loaded.name.apply(lambda x: x in set(parsed.name.values))]
-                self.embeddings = embeddings[loaded.name.apply(lambda x: x in set(parsed.name.values))]
-        else:          
-            if parsed.shape[0] > 0:
-                self.note_db = parsed
-                self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
+
+            parsed_paths = set(parsed.path)
+            loaded_paths = set(loaded.path)
+            
+            # drop deleted notes            
+            self.embeddings = embeddings[loaded.path.isin(parsed_paths)]
+            self.note_db = loaded[loaded.path.isin(parsed_paths)]
+
+            new_paths = parsed_paths.difference(loaded_paths)
+            if len(new_paths) > 0:
+                # add new notes
+                new_thoughts = parsed[~parsed.path.isin(loaded_paths)]
+                new_embeddings = self.embed(list(new_thoughts.thoughts.values), self.batch_size)
+
+                self.note_db = pd.concat((self.note_db, new_thoughts))
+                self.embeddings = np.concatenate((self.embeddings, new_embeddings), axis=0)
+        else:
+            self.note_db = parsed
+            self.embeddings = self.embed(list(parsed.thoughts.values), self.batch_size)
         
         self.create_index(self.embeddings)
         self.save()
