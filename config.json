@@ -1,6 +1,8 @@
 {
     "tg_api_token": "<YOUR TELEGRAM TOKEN>",
+    "note_db_path": "/home/booydar/Sync/obsidian-db/voice/",
+    "cache_path": "/home/booydar/Desktop/_projects/tg_notebot/saved",
+    "batch_size": "512",
     "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-    "note_db_path": "../notes/",
     "language": "ru-RU"
 }

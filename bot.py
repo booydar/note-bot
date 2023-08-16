@@ -34,7 +34,7 @@ class NoteBot(telebot.TeleBot):
     
     def save_text(self):
         note_text, note_name = parse_message(self.text, self.tags, self.links)
-        sv_path = os.path.join(self.db_path, f"{note_name}.md")
+        sv_path = os.path.join(self.db_path, f"voice/{note_name}.md")
         
         with open(sv_path, "w") as f:
             f.write(note_text)
@@ -50,7 +50,7 @@ class NoteBot(telebot.TeleBot):
 with open('config.json', 'r') as f:
     config = json.load(f)
 bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['language'])
-tm = ThoughtManager(config['note_db_path'], model_name=config["embedding_model"])
+tm = ThoughtManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=int(config['batch_size']))
 punct = Punctuator("./models/v2_4lang_q.pt")
 
 

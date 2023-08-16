@@ -3,6 +3,7 @@ import os
 import nltk
 import numpy as np
 import pandas as pd
+from threading import Timer
 from collections import Counter
 import torch
 import faiss                 
@@ -102,15 +103,15 @@ class ThoughtManager:
     def __init__(self, db_path, 
                         model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
                         device='cpu',
-                        # model_name='cointegrated/rubert-tiny',
-                        # device='cuda',
                         save_path='../saved',
                         batch_size=32):
-        self.init_model(model_name, device)
         self.db_path, self.save_path, self.batch_size = db_path, save_path, batch_size
+        self.init_model(model_name, device)
         self.parse_thoughts()
+        self.start_timer()
     
     def parse_thoughts(self):
+        print("### Parsing notes ###")
         parsed = parse_note_db(self.db_path, len_thr=40)
         parsed = self.extract_thoughts(parsed)
 
@@ -118,28 +119,37 @@ class ThoughtManager:
         if os.path.exists(df_path):
             loaded = pd.read_csv(df_path, sep=';')
             embeddings = np.load(os.path.join(self.save_path, 'embeddings.npy'))
-            if parsed.shape[0] == loaded.shape[0]:
-                self.note_db = loaded
-                self.embeddings = embeddings
-            elif parsed.shape[0] > loaded.shape[0]:
-                new_thoughts = parsed[parsed.name.apply(lambda x: x not in set(loaded.name.values))]
-                self.note_db = pd.concat((loaded, new_thoughts))
-                new_embeddings = self.embed(list(new_thoughts.thoughts.values))
-                self.embeddings = np.concatenate((embeddings, new_embeddings), axis=0)
-            else:
-                self.note_db = loaded[loaded.name.apply(lambda x: x in set(parsed.name.values))]
-                self.embeddings = embeddings[loaded.name.apply(lambda x: x in set(parsed.name.values))]
-        else:          
-            if parsed.shape[0] > 0:
-                self.note_db = parsed
-                self.embeddings = self.embed(list(self.note_db.thoughts.values), self.batch_size)
+
+            parsed_paths = set(parsed.path)
+            loaded_paths = set(loaded.path)
+            
+            # drop deleted notes            
+            self.embeddings = embeddings[loaded.path.isin(parsed_paths)]
+            self.note_db = loaded[loaded.path.isin(parsed_paths)]
+
+            new_paths = parsed_paths.difference(loaded_paths)
+            if len(new_paths) > 0:
+                # add new notes
+                new_thoughts = parsed[~parsed.path.isin(loaded_paths)]
+                new_embeddings = self.embed(list(new_thoughts.thoughts.values), self.batch_size)
+
+                self.note_db = pd.concat((self.note_db, new_thoughts))
+                self.embeddings = np.concatenate((self.embeddings, new_embeddings), axis=0)
+        else:
+            self.note_db = parsed
+            self.embeddings = self.embed(list(parsed.thoughts.values), self.batch_size)
         
         self.create_index(self.embeddings)
         self.save()
+        print("### Finished parsing ###")
 
     def get_nearest(self, note, k):
         thoughts = get_thoughts(clean(note))
-        nearest = pd.concat([self.get_knn(t, k=k) for t in thoughts])
+        nearest = [self.get_knn(t, k=k) for t in thoughts]
+        if len(nearest) > 0:
+            nearest = pd.concat(nearest)
+        else: 
+            nearest = self.get_knn(clean(note), k=k)
         return nearest.sort_values('distance')
 
     def get_knn(self, thought, k=5):
@@ -170,8 +180,18 @@ class ThoughtManager:
         return torch.vstack(embeddings)
 
     def init_model(self, model_name, device):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
+        model_path = os.path.join(self.save_path, 'model.pth')
+        tokenizer_path = os.path.join(self.save_path, 'tokenizer.pth')
+        if os.path.exists(model_path):
+            print("### Loading existing model ###")
+            self.tokenizer = torch.load(tokenizer_path)
+            self.model = torch.load(model_path)
+        else:
+            print("### Downloading model ###")
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModel.from_pretrained(model_name)
+            torch.save(self.tokenizer, tokenizer_path)
+            torch.save(self.model, model_path)
         self.model.eval()
         self.model.to(device)
         self.device = device
@@ -195,3 +215,12 @@ class ThoughtManager:
 
         self.note_db.to_csv(os.path.join(self.save_path, 'thoughts.csv'), sep=';', index=False)
         np.save(os.path.join(self.save_path, 'embeddings.npy'), self.embeddings)
+    
+    def start_timer(self):
+        class RepeatTimer(Timer):
+            def run(self):
+                while not self.finished.wait(self.interval):
+                    self.function(*self.args, **self.kwargs)
+
+        self.timer = RepeatTimer(1800, self.parse_thoughts)
+        self.timer.start()
