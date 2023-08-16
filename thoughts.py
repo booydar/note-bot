@@ -105,8 +105,8 @@ class ThoughtManager:
                         device='cpu',
                         save_path='../saved',
                         batch_size=32):
-        self.init_model(model_name, device)
         self.db_path, self.save_path, self.batch_size = db_path, save_path, batch_size
+        self.init_model(model_name, device)
         self.parse_thoughts()
         self.start_timer()
     
@@ -176,8 +176,18 @@ class ThoughtManager:
         return torch.vstack(embeddings)
 
     def init_model(self, model_name, device):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
+        model_path = os.path.join(self.save_path, 'model.pth')
+        tokenizer_path = os.path.join(self.save_path, 'tokenizer.pth')
+        if os.path.exists(model_path):
+            print("### Loading existing model ###")
+            self.tokenizer = torch.load(tokenizer_path)
+            self.model = torch.load(model_path)
+        else:
+            print("### Downloading model ###")
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModel.from_pretrained(model_name)
+            torch.save(self.tokenizer, tokenizer_path)
+            torch.save(self.model, model_path)
         self.model.eval()
         self.model.to(device)
         self.device = device
@@ -208,5 +218,5 @@ class ThoughtManager:
                 while not self.finished.wait(self.interval):
                     self.function(*self.args, **self.kwargs)
 
-        self.timer = RepeatTimer(3600, self.parse_thoughts())
+        self.timer = RepeatTimer(1800, self.parse_thoughts)
         self.timer.start()

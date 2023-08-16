@@ -45,7 +45,7 @@ class NoteBot(telebot.TeleBot):
     
     def save_text(self):
         note_text, note_name = parse_message(self.text, self.tags, self.links)
-        sv_path = os.path.join(self.db_path, f"{note_name}.md")
+        sv_path = os.path.join(self.db_path, f"voice/{note_name}.md")
         
         with open(sv_path, "w") as f:
             f.write(note_text)
@@ -70,7 +70,7 @@ bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['admin_chat
 sheet_writer = SheetWriter(gsheets_cred)
 punct = Punctuator(config['punct_model'])
 ms = MovieSaver(gsheets_cred, config['tmdb_api_key'])
-tm = ThoughtManager(config['note_db_path'], model_name=config['embedding_model'])
+tm = ThoughtManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'])
 
 def expense_markup():
     markup = InlineKeyboardMarkup()
