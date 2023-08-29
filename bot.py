@@ -70,7 +70,7 @@ bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['admin_chat
 sheet_writer = SheetWriter(gsheets_cred)
 punct = Punctuator(config['punct_model'])
 ms = MovieSaver(gsheets_cred, config['tmdb_api_key'])
-tm = ThoughtManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=config['batch_size'])
+tm = ThoughtManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=int(config['batch_size']))
 
 def expense_markup():
     markup = InlineKeyboardMarkup()
