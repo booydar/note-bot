@@ -8,7 +8,7 @@ COPY . /app/
 
 # install dependencies
 RUN apt-get update -y
-RUN apt-get install -y ffmpeg
+RUN apt-get install -y ffmpeg wget
 
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m nltk.downloader punkt
