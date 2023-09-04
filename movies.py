@@ -51,7 +51,7 @@ def get_info(film, type='movie'):
                 }
     return film_info
 
-columns = ['Your Rating', 'название', 'год', 'дата просмотра', 'дата выхода', 'Type', 'Name', 'Rating', 'TMDb ID', 'IMDb ID', 'режиссер', 'сценарист', 'проюсер', 'актеры', 'студия']
+columns = ['Your Rating', 'название', 'год', 'дата просмотра', 'дата выхода', 'Type', 'Name', 'Rating', 'TMDb ID', 'IMDb ID', 'режиссер', 'сценарист', 'проюсер', 'актеры', 'студия', 'комментарий']
 class MovieSaver:
     def __init__(self, cred_path, tmdb_api_key):
         tmdb.API_KEY = tmdb_api_key
@@ -60,10 +60,13 @@ class MovieSaver:
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         self.credentials = ServiceAccountCredentials.from_json_keyfile_name(cred_path, scopes) 
 
-    def save(self, movie, rating, type, sheet=0):
+    def save(self, movie, rating, type, comment=None, sheet=0):
         info = get_info(movie, type)
         info['Your Rating'] = rating
         info['дата просмотра'] = str(pd.Timestamp.today().date())
+        if comment is None:
+            comment = '-'
+        info['комментарий'] = comment
         film_info = [info[c] for c in columns]
         self.write_to_gsheet(film_info, sheet)
 
@@ -72,4 +75,3 @@ class MovieSaver:
         sheet = file.open('фильмы').worksheets()[sheet_num]
         write_row_ind = max({len(sheet.col_values(1)), len(sheet.col_values(2))}) + 1
         sheet.update(f"A{write_row_ind}:P{write_row_ind}", [film_info])
-

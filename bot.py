@@ -30,6 +30,7 @@ class NoteBot(telebot.TeleBot):
         self.wait_value = False
         self.text = ""
         self.rating = None
+        self.comment = None
 
     def transcribe_message(self, message):
         self.tags = []
@@ -60,7 +61,7 @@ class NoteBot(telebot.TeleBot):
 
     def clear(self):
         self.text = ''
-        self.movie = self.rating = self.year = None
+        self.movie = self.rating = self.year = self.comment = None
         self.wait_value = None
         self.tags = []
         self.links = []
@@ -195,7 +196,7 @@ def callback_query(call):
         bot.wait_value = 'rating'
     elif call.data == "write_movie":
         if str(bot.chat_id) == str(bot.admin_chat_id):
-            ms.save(bot.movies[0], bot.rating, bot.type)
+            ms.save(bot.movies[0], bot.rating, bot.type, bot.comment)
         bot.clear()
         bot.answer_callback_query(call.id, "Film saved")
     elif call.data == "to_watchlist":
@@ -245,8 +246,10 @@ def start_message(message):
 def handle_voice(message):
     bot.chat_id = message.chat.id
     raw, punctuated = bot.transcribe_message(message)
-    if "трат" in raw[:15]:
-        bot.handle_expense(raw)
+
+    if bot.wait_value == 'comment':
+        bot.comment = punctuated
+        bot.send_message(message.chat.id, punctuated)
     else:
         bot.text_raw = bot.text
         bot.text_raw += raw + " "
@@ -267,12 +270,17 @@ def handle_text(message):
         try:
             bot.year = int(message.text)
         except ValueError:
-            pass
+            bot.send_message(message.chat.id, "### Error processing year, try again. ###")
     elif bot.wait_value == "rating":
         try:
             bot.rating = int(message.text)
+            bot.wait_value = "comment"
+            bot.send_message(message.chat.id, "Добавь комментарий", reply_markup=write_movie_markup())
         except ValueError:
-            pass
+            bot.send_message(message.chat.id, "### Error processing rating, try again. ###")
+
+    elif bot.wait_value == "comment":
+        bot.comment = message.text
     elif bot.wait_value == "tag":
         bot.tags.append(message.text)
     else:
