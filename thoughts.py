@@ -204,7 +204,7 @@ class ThoughtManager:
     def suggest_tags(self, text):
         drop_tags = {'', 'voice'}
         nearest = self.get_knn(text, 10)
-        all_tags = ', '.join(nearest.tags).split(', ')
+        all_tags = ', '.join(nearest.tags.dropna()).split(', ')
         all_tags = list(filter(lambda x: x not in drop_tags, all_tags))
         suggested_tags = [t[0] for t in Counter(all_tags).most_common(4)]
         return suggested_tags
