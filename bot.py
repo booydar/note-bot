@@ -201,7 +201,8 @@ def callback_query(call):
         bot.answer_callback_query(call.id, "Film saved")
     elif call.data == "to_watchlist":
         if str(bot.chat_id) == str(bot.admin_chat_id):
-            ms.save(bot.movies[0], bot.rating, bot.type, 1)
+            ms.save(bot.movies[0], bot.rating, bot.type, sheet=1)
+            bot.answer_callback_query(call.id, "Film added to watchlist")
         bot.clear()
     elif call.data == "hashtag":
         bot.answer_callback_query(call.id)
