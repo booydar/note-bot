@@ -218,8 +218,9 @@ def callback_query(call):
     elif call.data == "get_thoughts":
         bot.nearest = tm.get_nearest(bot.text, k=25)
         nearest = bot.nearest[:5]
-        template = "{}\n{} [[{}]]\n\n"
-        thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
+        template = "[{}] {}\n{} [[{}]]\n\n"
+        thoughts = [template.format(i+1, t, round(float(d), 2), n) \
+                    for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
         bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
     elif call.data == "next_thoughts":
         bot.nearest = bot.nearest[5:]
@@ -229,7 +230,8 @@ def callback_query(call):
         else:
             nearest = bot.nearest[:5]
             template = "{}\n{} [[{}]]\n\n"
-            thoughts = [template.format(t, round(float(d), 2), n) for t, d, n in zip(nearest.thoughts, nearest.distance, nearest.name)]
+            thoughts = [template.format(i+1, t, round(float(d), 2), n) \
+                    for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
             bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
         
     elif call.data == "clear":
