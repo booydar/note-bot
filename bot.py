@@ -229,7 +229,7 @@ def callback_query(call):
             bot.clear()
         else:
             nearest = bot.nearest[:5]
-            template = "{}\n{} [[{}]]\n\n"
+            template = "[{}] {}\n{} [[{}]]\n\n"
             thoughts = [template.format(i+1, t, round(float(d), 2), n) \
                     for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
             bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
