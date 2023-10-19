@@ -144,7 +144,8 @@ def callback_query(call):
         bot.clear()
         bot.answer_callback_query(call.id, "Expense saved")
     elif call.data == "find_film":
-        bot.send_message(bot.chat_id, "Укажи год, если возможно.", reply_markup=film_tv_markup())
+        msg = bot.send_message(bot.chat_id, "Укажи год, если возможно.", reply_markup=film_tv_markup())
+        bot.last_msg_id = msg.message_id
         bot.year = None
         bot.wait_value = 'year'
     elif call.data == "save_movie":
@@ -192,7 +193,8 @@ def callback_query(call):
             bot.clear()
             bot.answer_callback_query(call.id, "Film search ended")
     elif call.data == "get_rating":
-        bot.send_message(bot.chat_id, "Введи оценку от 1 до 10", reply_markup=write_movie_markup())
+        msg = bot.send_message(bot.chat_id, "Введи оценку от 1 до 10", reply_markup=write_movie_markup())
+        bot.last_msg_id = msg.message_id
         bot.wait_value = 'rating'
     elif call.data == "write_movie":
         if str(bot.chat_id) == str(bot.admin_chat_id):
@@ -208,7 +210,8 @@ def callback_query(call):
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
         bot.suggested_tags = tm.suggest_tags(bot.text)
-        bot.send_message(bot.chat_id, "Введи название тега", reply_markup=tag_markup())
+        msg = bot.send_message(bot.chat_id, "Введи название тега", reply_markup=tag_markup())
+        bot.last_msg_id = msg.message_id
     elif call.data.startswith("add_tag_"):
         tag_name = call.data.split('add_tag_')[1]
         bot.tags.append(tag_name)
@@ -221,20 +224,25 @@ def callback_query(call):
         template = "[{}] {}\n{} [[{}]]\n\n"
         thoughts = [template.format(i+1, t, round(float(d), 2), n) \
                     for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
-        bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
+        msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
+        bot.last_msg_id = msg.message_id
     elif call.data == "next_thoughts":
         bot.nearest = bot.nearest[5:]
         if len(bot.nearest) == 0:
-            bot.send_message(bot.chat_id, "Конец")
+            msg = bot.send_message(bot.chat_id, "Конец")
+            bot.last_msg_id = msg.message_id
             bot.clear()
         else:
             nearest = bot.nearest[:5]
             template = "[{}] {}\n{} [[{}]]\n\n"
             thoughts = [template.format(i+1, t, round(float(d), 2), n) \
                     for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
-            bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
+            bot.delete_message(bot.chat_id, bot.last_msg_id)
+            msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
+            bot.last_msg_id = msg.message_id
         
     elif call.data == "clear":
+        bot.delete_message(bot.chat_id, bot.last_msg_id)
         bot.clear()
 
 
@@ -252,12 +260,14 @@ def handle_voice(message):
 
     if bot.wait_value == 'comment':
         bot.comment = punctuated
-        bot.send_message(message.chat.id, punctuated)
+        msg = bot.send_message(message.chat.id, punctuated)
+        bot.last_msg_id = msg.message_id
     else:
         bot.text_raw = bot.text
         bot.text_raw += raw + " "
         bot.text += punctuated + " "
-        bot.send_message(message.chat.id, punctuated, reply_markup=voice_markup())
+        msg = bot.send_message(message.chat.id, punctuated, reply_markup=voice_markup())
+        bot.last_msg_id = msg.message_id
 
 
 @bot.message_handler(content_types=["text"])
@@ -288,7 +298,8 @@ def handle_text(message):
         bot.tags.append(message.text)
     else:
         bot.text += message.text + " "
-        bot.send_message(message.chat.id, bot.text, reply_markup=voice_markup())
+        msg = bot.send_message(message.chat.id, bot.text, reply_markup=voice_markup())
+        bot.last_msg_id = msg.message_id
     
 
 bot.infinity_polling()
