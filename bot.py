@@ -53,8 +53,7 @@ class NoteBot(telebot.TeleBot):
         self.amount = amount
         self.wait_value = 'comment'
         msg = self.send_message(self.chat_id, f"Сумма: {amount}\nУкажите категорию", reply_markup=category_markup())
-        self.to_delete.append(msg.message_id)
-        print('msg', msg.message_id)
+        return msg.message_id
 
     def clear(self):
         self.text = ''
@@ -142,9 +141,7 @@ def callback_query(call):
         else:
             bot.answer_callback_query(call.id, "Not available")
             bot.send_message(bot.admin_chat_id, f"{bot.chat_id} пытается сохранить тебе заметку!")
-        
-    elif call.data == "parse_expense":
-        bot.handle_expense(bot.text)
+
     elif call.data == "find_film":
         msg = bot.send_message(bot.chat_id, "Укажи год, если возможно.", reply_markup=film_tv_markup())
         bot.to_delete.append(msg.message_id)
@@ -309,7 +306,8 @@ def handle_text(message):
     else:
         try:
             amount = int(message.text)
-            bot.handle_expense(amount)
+            msg_id = bot.handle_expense(amount)
+            bot.to_delete.append(msg_id)
             return
         except ValueError:
             bot.text += message.text + " "
