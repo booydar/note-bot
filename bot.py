@@ -22,15 +22,11 @@ with open(config_path, 'r') as f:
 class NoteBot(telebot.TeleBot):
     def __init__(self, api_token, note_db_path, admin_chat_id):
         super().__init__(api_token)
+        self.to_delete = []
         self.db_path = note_db_path
         self.admin_chat_id = admin_chat_id
         self.lang = "ru-RU"
-        self.tags = []
-        self.links = []
-        self.wait_value = False
-        self.text = ""
-        self.rating = None
-        self.comment = None
+        self.clear()
 
     def transcribe_message(self, message):
         self.tags = []
@@ -52,19 +48,24 @@ class NoteBot(telebot.TeleBot):
             f.write(note_text)
         self.clear()
         tm.parse_thoughts()
-
-    def handle_expense(self, text):
-        values = sheet_writer.parse_expense(text)
-        self.expense = values
-        confirm_message = "Сумма: {}\nКатегория: {}\nКомментарий: {}".format(*values)
-        self.send_message(self.chat_id, confirm_message, reply_markup=expense_markup())
+        
+    def handle_expense(self, amount):
+        self.amount = amount
+        self.wait_value = 'comment'
+        msg = self.send_message(self.chat_id, f"Сумма: {amount}\nУкажите категорию", reply_markup=category_markup())
+        self.to_delete.append(msg.message_id)
+        print('msg', msg.message_id)
 
     def clear(self):
         self.text = ''
-        self.movie = self.rating = self.year = self.comment = None
+        self.movie = self.rating = self.year = self.comment = self.amount = None
         self.wait_value = None
         self.tags = []
         self.links = []
+        print(f'Deleting {self.to_delete}')
+        for msg_id in self.to_delete:
+            bot.delete_message(bot.chat_id, msg_id)
+        self.to_delete = []
 
 
 bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['admin_chat_id'])
@@ -77,6 +78,13 @@ def expense_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
     markup.add(InlineKeyboardButton("Сохранить", callback_data="save_expense"))
+    return markup
+
+def category_markup():
+    markup = InlineKeyboardMarkup()
+    buttons = [InlineKeyboardButton(c, callback_data='category_' + c) for c in sheet_writer.categories]
+    markup.row_width = 2
+    markup.add(*buttons)
     return markup
 
 def tag_markup():
@@ -109,9 +117,8 @@ def write_movie_markup():
 
 def voice_markup():
     markup = InlineKeyboardMarkup()
-    markup.row_width = 3
+    markup.row_width = 2
     markup.add(InlineKeyboardButton("В заметки", callback_data="save_note"),
-               InlineKeyboardButton("В расходы", callback_data="parse_expense"),
                InlineKeyboardButton("В фильмы", callback_data="find_film"),
                InlineKeyboardButton("Мысли", callback_data="get_thoughts"),
                InlineKeyboardButton("+тэг", callback_data="hashtag"))
@@ -121,7 +128,7 @@ def thoughts_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 5
     buttons = [InlineKeyboardButton(str(i+1), callback_data=f"add_link_{i}") for i in range(5)] 
-    buttons += [InlineKeyboardButton("Следующие", callback_data="next_thoughts"), InlineKeyboardButton("Закончить", callback_data="clear")]
+    buttons += [InlineKeyboardButton("Следующие", callback_data="next_thoughts"), InlineKeyboardButton("Сохранить", callback_data="save_note")]
     markup.add(*buttons)
     return markup
 
@@ -138,14 +145,9 @@ def callback_query(call):
         
     elif call.data == "parse_expense":
         bot.handle_expense(bot.text)
-    elif call.data == "save_expense":
-        if str(bot.chat_id) == str(bot.admin_chat_id):
-            sheet_writer.write_to_gsheet(*bot.expense)
-        bot.clear()
-        bot.answer_callback_query(call.id, "Expense saved")
     elif call.data == "find_film":
         msg = bot.send_message(bot.chat_id, "Укажи год, если возможно.", reply_markup=film_tv_markup())
-        bot.last_msg_id = msg.message_id
+        bot.to_delete.append(msg.message_id)
         bot.year = None
         bot.wait_value = 'year'
     elif call.data == "save_movie":
@@ -161,8 +163,9 @@ def callback_query(call):
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
-                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
+                msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
             os.system('rm -r tmp.jpg')
+            bot.to_delete.append(msg.message_id)
     elif call.data == "save_tv":
         bot.type = 'tv'
         bot.movies = get_movies(bot.text, year=bot.year, language='ru', type='tv')
@@ -176,9 +179,11 @@ def callback_query(call):
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
-                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
+                msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
             os.system('rm -r tmp.jpg')
+            bot.to_delete.append(msg.message_id)
     elif call.data == "another_movie":
+        bot.delete_message(bot.chat_id, bot.to_delete[-1])
         bot.movies = bot.movies[1:]
         if len(bot.movies) > 0:
             movie = bot.movies[0]
@@ -186,15 +191,16 @@ def callback_query(call):
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
-                bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
+                msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
             os.system('rm -r tmp.jpg')
+            bot.to_delete.append(msg.message_id)
         else:
             bot.send_message(bot.chat_id, "Фильм не найден :(")
             bot.clear()
             bot.answer_callback_query(call.id, "Film search ended")
     elif call.data == "get_rating":
         msg = bot.send_message(bot.chat_id, "Введи оценку от 1 до 10", reply_markup=write_movie_markup())
-        bot.last_msg_id = msg.message_id
+        bot.to_delete.append(msg.message_id)
         bot.wait_value = 'rating'
     elif call.data == "write_movie":
         if str(bot.chat_id) == str(bot.admin_chat_id):
@@ -211,7 +217,7 @@ def callback_query(call):
         bot.wait_value = "tag"
         bot.suggested_tags = tm.suggest_tags(bot.text)
         msg = bot.send_message(bot.chat_id, "Введи название тега", reply_markup=tag_markup())
-        bot.last_msg_id = msg.message_id
+        bot.to_delete.append(msg.message_id)
     elif call.data.startswith("add_tag_"):
         tag_name = call.data.split('add_tag_')[1]
         bot.tags.append(tag_name)
@@ -225,24 +231,28 @@ def callback_query(call):
         thoughts = [template.format(i+1, t, round(float(d), 2), n) \
                     for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
         msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
-        bot.last_msg_id = msg.message_id
+        bot.to_delete.append(msg.message_id)
     elif call.data == "next_thoughts":
         bot.nearest = bot.nearest[5:]
         if len(bot.nearest) == 0:
             msg = bot.send_message(bot.chat_id, "Конец")
-            bot.last_msg_id = msg.message_id
+            bot.to_delete.append(msg.message_id)
             bot.clear()
         else:
             nearest = bot.nearest[:5]
             template = "[{}] {}\n{} [[{}]]\n\n"
             thoughts = [template.format(i+1, t, round(float(d), 2), n) \
                     for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
-            bot.delete_message(bot.chat_id, bot.last_msg_id)
+            bot.delete_message(bot.chat_id, bot.to_delete[-1])
             msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
-            bot.last_msg_id = msg.message_id
+            bot.to_delete.append(msg.message_id)
         
+    elif call.data.startswith("category_"):
+        category = call.data.split('category_')[1]
+        sheet_writer.write_to_gsheet(bot.amount, category, bot.comment)
+        bot.answer_callback_query(call.id, "Expense saved")
+        bot.clear()
     elif call.data == "clear":
-        bot.delete_message(bot.chat_id, bot.last_msg_id)
         bot.clear()
 
 
@@ -261,13 +271,13 @@ def handle_voice(message):
     if bot.wait_value == 'comment':
         bot.comment = punctuated
         msg = bot.send_message(message.chat.id, punctuated)
-        bot.last_msg_id = msg.message_id
+        bot.to_delete.append(msg.message_id)
     else:
         bot.text_raw = bot.text
         bot.text_raw += raw + " "
         bot.text += punctuated + " "
         msg = bot.send_message(message.chat.id, punctuated, reply_markup=voice_markup())
-        bot.last_msg_id = msg.message_id
+        bot.to_delete.append(msg.message_id)
 
 
 @bot.message_handler(content_types=["text"])
@@ -297,9 +307,14 @@ def handle_text(message):
     elif bot.wait_value == "tag":
         bot.tags.append(message.text)
     else:
-        bot.text += message.text + " "
-        msg = bot.send_message(message.chat.id, bot.text, reply_markup=voice_markup())
-        bot.last_msg_id = msg.message_id
+        try:
+            amount = int(message.text)
+            bot.handle_expense(amount)
+            return
+        except ValueError:
+            bot.text += message.text + " "
+            msg = bot.send_message(message.chat.id, bot.text, reply_markup=voice_markup())
+            bot.to_delete.append(msg.message_id)
     
 
 bot.infinity_polling()
