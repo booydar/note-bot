@@ -63,7 +63,10 @@ class NoteBot(telebot.TeleBot):
         self.links = []
         print(f'Deleting {self.to_delete}')
         for msg_id in self.to_delete:
-            bot.delete_message(bot.chat_id, msg_id)
+            try:
+                bot.delete_message(bot.chat_id, msg_id)
+            except Exception:
+                print(f'Cannot delete message {msg_id}')
         self.to_delete = []
 
 
