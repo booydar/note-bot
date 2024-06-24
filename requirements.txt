@@ -18,5 +18,7 @@ scikit-learn==1.2.2
 scipy==1.10.1
 SpeechRecognition==3.8.1
 tmdbsimple==2.9.1
-torch==1.12.1
 transformers==4.29.2
+easyocr==1.7.1
+tmdbsimple==2.9.1
+oauth2client==4.1.3

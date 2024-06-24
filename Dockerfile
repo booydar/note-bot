@@ -10,6 +10,8 @@ COPY . /app/
 RUN apt-get update -y
 RUN apt-get install -y ffmpeg wget
 
+# RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m nltk.downloader punkt
 

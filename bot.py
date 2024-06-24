@@ -3,6 +3,8 @@ import sys
 import json
 import random
 import pandas as pd
+
+import easyocr
 import telebot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from transcribe import transcribe_audio, Punctuator
@@ -18,6 +20,7 @@ with open(config_path, 'r') as f:
     config = json.load(f)
     sys.path.append(config['ffprobe'])
     gsheets_cred = os.path.join(CONFIG_FOLDER, 'gsheets.json')
+    ocr_thr = config.get('ocr_thr', 0.35)
 
 class NoteBot(telebot.TeleBot):
     def __init__(self, api_token, note_db_path, admin_chat_id):
@@ -36,7 +39,7 @@ class NoteBot(telebot.TeleBot):
             new_file.write(voice_file)
 
         raw = transcribe_audio("tmp.ogg", self.lang)
-        os.system("rm tmp.ogg")
+        os.remove("tmp.ogg")
         punctuated = punct.apply(raw)
         return raw, punctuated
     
@@ -75,6 +78,7 @@ sheet_writer = SheetWriter(gsheets_cred)
 punct = Punctuator(config['punct_model'])
 ms = MovieSaver(gsheets_cred, config['tmdb_api_key'])
 tm = ThoughtManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=int(config['batch_size']))
+ocr_reader = easyocr.Reader(['en', 'ru'])
 
 def expense_markup():
     markup = InlineKeyboardMarkup()
@@ -164,7 +168,7 @@ def callback_query(call):
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
                 msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
-            os.system('rm -r tmp.jpg')
+            os.remove('tmp.jpg')
             bot.to_delete.append(msg.message_id)
     elif call.data == "save_tv":
         bot.type = 'tv'
@@ -180,7 +184,7 @@ def callback_query(call):
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
                 msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
-            os.system('rm -r tmp.jpg')
+            os.remove('tmp.jpg')
             bot.to_delete.append(msg.message_id)
     elif call.data == "another_movie":
         bot.delete_message(bot.chat_id, bot.to_delete[-1])
@@ -192,7 +196,7 @@ def callback_query(call):
             os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
             with open('tmp.jpg', 'rb') as img:
                 msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
-            os.system('rm -r tmp.jpg')
+            os.remove('tmp.jpg')
             bot.to_delete.append(msg.message_id)
         else:
             bot.send_message(bot.chat_id, "Фильм не найден :(")
@@ -279,6 +283,25 @@ def handle_voice(message):
         msg = bot.send_message(message.chat.id, punctuated, reply_markup=voice_markup())
         bot.to_delete.append(msg.message_id)
 
+@bot.message_handler(content_types=['photo'])
+def handle_image(message):
+    bot.chat_id = message.chat.id
+    fileID = message.photo[-1].file_id
+    file = bot.get_file(fileID)
+    image = bot.download_file(file.file_path)
+    with open('tmp', 'wb') as f:
+        f.write(image)
+
+    result = ocr_reader.readtext('tmp')
+    lines = [r[1] for r in result if len(r[1]) > 1 and r[2] > 0.35]
+    text = '\n'.join(lines)
+    if message.caption:
+        text += '\n\n' + message.caption
+    bot.text += text + " "
+    os.remove("tmp")
+
+    msg = bot.send_message(message.chat.id, text, reply_markup=voice_markup())
+    bot.to_delete.append(msg.message_id)
 
 @bot.message_handler(content_types=["text"])
 def handle_text(message):
