@@ -9,6 +9,7 @@ import telebot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from transcribe import transcribe_audio, Punctuator
 from parse import parse_message
+from ocr import get_text_on_image
 
 from finance import SheetWriter
 from movies import get_movies, get_info, MovieSaver
@@ -20,7 +21,7 @@ with open(config_path, 'r') as f:
     config = json.load(f)
     sys.path.append(config['ffprobe'])
     gsheets_cred = os.path.join(CONFIG_FOLDER, 'gsheets.json')
-    ocr_thr = config.get('ocr_thr', 0.35)
+    ocr_thr = float(config.get('ocr_thr', 0.35))
 
 class NoteBot(telebot.TeleBot):
     def __init__(self, api_token, note_db_path, admin_chat_id):
@@ -292,9 +293,7 @@ def handle_image(message):
     with open('tmp', 'wb') as f:
         f.write(image)
 
-    result = ocr_reader.readtext('tmp')
-    lines = [r[1] for r in result if len(r[1]) > 1 and r[2] > 0.35]
-    text = '\n'.join(lines)
+    text = get_text_on_image(ocr_reader, 'tmp', min_line_len=2, min_confidence=ocr_thr)
     if message.caption:
         text += '\n\n' + message.caption
     bot.text += text + " "
