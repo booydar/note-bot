@@ -22,3 +22,4 @@ transformers==4.29.2
 easyocr==1.7.1
 tmdbsimple==2.9.1
 oauth2client==4.1.3
+ollama==0.1.8

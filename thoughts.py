@@ -2,12 +2,14 @@ import re
 import os
 import nltk
 import numpy as np
-import pandas as pd
+# import pandas as pd
+import json
 from threading import Timer
 from collections import Counter
 import torch
 import faiss                 
 from transformers import AutoModel, AutoTokenizer
+import ollama
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def clean(note):
@@ -45,11 +47,11 @@ def filter_thought(thought):
     
     thought = str(thought)
     letters_only = re.sub('[^a-zA-Zа-яА-Я]', '',  thought)
-    if len(letters_only) < 10:
+    if len(letters_only) < 30:
         return False
     
     words_only = re.sub('[^a-zA-Zа-яА-Я ]', '',  thought)
-    if len(words_only.split(' ')) < 3:
+    if len(words_only.split(' ')) < 10:
         return False
     
     return True
@@ -61,17 +63,17 @@ def find_tags(note):
     return tuple(tags)
 
 
-def parse_note_db(db_path, len_thr):
+def parse_folder(db_path, len_thr=40):
     path, folders, files = next(os.walk(db_path))
 
-    note_dfs = []
+    subfolder_dbs = []
     if len(folders) > 0:
         for f in folders:
             folder_path = os.path.join(path, f)
-            folder_df = parse_note_db(folder_path, len_thr)
-            note_dfs.append(folder_df)
+            folder_db = parse_folder(folder_path, len_thr)
+            subfolder_dbs += folder_db
 
-    db_df = pd.DataFrame()
+    db = []
     for fn in files:
         if '.md' not in fn:
             continue
@@ -84,81 +86,189 @@ def parse_note_db(db_path, len_thr):
             continue
         cleaned_note = clean(note)
         tags = find_tags(note)
-        note_dict = {'name': fn.split('.md')[0], 'path':filepath, 'note':[note], 'cleaned_note': [cleaned_note], 'tags': ', '.join(tags)}
-        db_df = pd.concat([db_df, pd.DataFrame(note_dict)])
+        # sentences = get_sentences(cleaned_note)
+        # paragraphs = get_paragraphs(cleaned_note)
+        # llm_thoughts = llm_get_thoughts(cleaned_note)
+        note_dict = {'name': fn.split('.md')[0], 'path':filepath, 
+                     'note':note, 'cleaned_note': cleaned_note, 
+                    #  'llm_thoughts': llm_thoughts, 
+                    #  'sentences': sentences, 
+                    # "paragraphs": paragraphs, 
+                     'tags': tags}
+        db.append(note_dict)
 
-    note_dfs.append(db_df)
-    res_df = pd.concat(note_dfs)
-    return res_df
+    db = db + subfolder_dbs
+    return db
 
 
-def get_thoughts(note):
-    thoughts = [t for thought in re.split('\n|\t', note) for t in nltk.sent_tokenize(thought)]
-    cleaned_thoughts = list(map(clean_thought, thoughts))
-    filtered_thoughts = list(filter(filter_thought, cleaned_thoughts))
-    return filtered_thoughts
+def get_sentences(note):
+    sentences = [t for thought in re.split('\n|\t', note) for t in nltk.sent_tokenize(thought)]
+    cleaned = list(map(clean_thought, sentences))
+    filtered = list(filter(filter_thought, cleaned))
+    return filtered
+
+def get_paragraphs(note):
+    paragraphs = [p for p in re.split('\n\n', note)]
+    cleaned = list(map(clean_thought, paragraphs))
+    filtered = list(filter(filter_thought, cleaned))
+    return filtered
 
 
-class ThoughtManager:
+def llm(query):
+    response = ollama.chat(model='llama3',
+                            messages=[{'role': 'user', 
+                                        'content': query}])
+    return response['message']['content']
+
+def llm_get_thoughts(text):
+    prompt = '''Summarize the following text in 2-3 sentences, formulate it very concisely. Text: {} Output only the concise summary, 2-3 sentences.'''
+    query = prompt.format(text[:20_000])
+    ans = llm(query)
+    if '\n' in ans: 
+        ans = ans.split('\n')[-1]
+    thoughts = ans.split('.')
+    thoughts = list(filter(len, thoughts))
+    thoughts = [t.strip() for t in thoughts]
+    return thoughts
+
+
+# SEARCH_FIELDS = ['cleaned_note', 'sentences', 'paragraphs', 'llm_thoughts']
+SEARCH_FIELDS = ['sentences', 'paragraphs', 'llm_thoughts']
+class NoteManager:
     def __init__(self, db_path, 
                         model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
                         device='cpu',
                         save_path='../saved',
-                        batch_size=32):
+                        batch_size=32,
+                        from_scratch=False):
+        os.makedirs(save_path, exist_ok=True)
+        
         self.db_path, self.save_path, self.batch_size = db_path, save_path, batch_size
         self.init_model(model_name, device)
-        self.parse_thoughts()
-        self.start_timer()
+        self.load_db(from_scratch)
+        self.parse_notes()
+        # self.start_timer()
     
-    def parse_thoughts(self):
-        print("### Parsing notes ###")
-        parsed = parse_note_db(self.db_path, len_thr=40)
-        parsed = self.extract_thoughts(parsed)
+    def get_nearest(self, text, k=5, by_field='sentence'):
+        index = self.index[by_field]
 
-        df_path = os.path.join(self.save_path, 'thoughts.csv')
-        if os.path.exists(df_path):
-            loaded = pd.read_csv(df_path, sep=';')
-            embeddings = np.load(os.path.join(self.save_path, 'embeddings.npy'))
+        text_emb = self.embed([clean(text)])
+        D, I = index.search(torch.stack(text_emb), k)
 
-            parsed_paths = set(parsed.path)
-            loaded_paths = set(loaded.path)
-            
-            # drop deleted notes            
-            self.embeddings = embeddings[loaded.path.isin(parsed_paths)]
-            self.note_db = loaded[loaded.path.isin(parsed_paths)]
-
-            new_paths = parsed_paths.difference(loaded_paths)
-            if len(new_paths) > 0:
-                # add new notes
-                new_thoughts = parsed[~parsed.path.isin(loaded_paths)]
-                new_embeddings = self.embed(list(new_thoughts.thoughts.values), self.batch_size)
-
-                self.note_db = pd.concat((self.note_db, new_thoughts))
-                self.embeddings = np.concatenate((self.embeddings, new_embeddings), axis=0)
-        else:
-            self.note_db = parsed
-            self.embeddings = self.embed(list(parsed.thoughts.values), self.batch_size)
-        
-        self.create_index(self.embeddings)
-        self.save()
-        print("### Finished parsing ###")
-
-    def get_nearest(self, note, k):
-        thoughts = get_thoughts(clean(note))
-        nearest = [self.get_knn(t, k=k) for t in thoughts]
-        if len(nearest) > 0:
-            nearest = pd.concat(nearest)
-        else: 
-            nearest = self.get_knn(clean(note), k=k)
-        return nearest.sort_values('distance')
-
-    def get_knn(self, thought, k=5):
-        text_embedding = self.embed([thought])
-
-        D, I = self.index.search(text_embedding, k)
-        nearest = self.note_db.iloc[I[0]].copy()
-        nearest['distance'] = D[0]
+        nearest = self.get_notes_by_field(by_field, I[0])
+        for i, n in enumerate(nearest):
+            n['distance'] = D[0][i]
+        nearest = sorted(nearest, key=lambda n: n['distance'])
         return nearest
+
+    def get_nearest_all_fields(self, text, k=5):
+        nearest = []
+        for field in SEARCH_FIELDS:
+            nearest_f = self.get_nearest(text, k, field) 
+            for n in nearest_f:
+                n['search_field'] = field
+            nearest += nearest_f
+        return sorted(nearest, key=lambda n: n['distance'])
+    
+    def suggest_tags(self, text):
+        drop_tags = {''}
+        nearest = self.get_nearest_all_fields(text, 10)
+        
+        all_tags = [t for n in nearest for t in n['tags']]
+        all_tags = list(filter(lambda x: x not in drop_tags, all_tags))
+        suggested_tags = [t[0] for t in Counter(all_tags).most_common(4)]
+        return suggested_tags
+    
+    def parse_notes(self):
+        print("### Parsing notes ###")
+        loaded = parse_folder(self.db_path, len_thr=40)
+
+        self.add_notes(loaded)
+        self.extract_thoughts()
+        self.build_index()
+        self.embed_database()
+        self.save()
+
+    def add_notes(self, notes):
+        print("### Adding notes ###")
+        # Create dictionaries for fast lookups by 'path'
+        db_dict = {n['path']: n for n in self.db}
+        loaded_db_dict = {n['path']: n for n in notes}
+
+        new_notes = {path: n for path, n in loaded_db_dict.items() if path not in db_dict}
+        changed_notes = {path: n for path, n in loaded_db_dict.items() if path in db_dict and db_dict[path]['note'] != n['note']}
+        deleted_note_paths = {path for path in db_dict if path not in loaded_db_dict}
+
+        for path in changed_notes:
+            del db_dict[path]
+
+        for path in deleted_note_paths:
+            del db_dict[path]
+
+        # Update database with new notes
+        self.db = list(db_dict.values()) + list(new_notes.values()) + list(changed_notes.values())
+    
+    def extract_thoughts(self):
+        print("### Extracting thoughts ###")
+        for n in self.db:
+            cn = n['cleaned_note']
+            if 'llm_thoughts' not in n:
+                n['llm_thoughts'] = llm_get_thoughts(cn)
+            if 'sentences' not in n:
+                n['sentences'] = get_sentences(cn)
+            if 'paragraphs' not in n:
+                n['paragraphs'] = get_paragraphs(cn)
+    
+    def build_index(self):
+        print("### Buliding index ###")
+        self.f2i = dict()
+        for field in SEARCH_FIELDS:
+            note_inds = []
+            field_inds = []
+            for note_ind, note in enumerate(self.db):
+                nf = note[field]
+                if type(nf) == str:
+                    note_inds.append(note_ind)
+                    field_inds.append(0)
+                elif type(nf) == list:
+                    note_inds += [note_ind] * len(nf)
+                    field_inds += list(range(len(nf)))
+            element_inds = range(len(note_inds))
+            self.f2i[field] = dict(zip(element_inds, zip(note_inds, field_inds)))
+    
+    def embed_database(self):
+        print("### Embedding DB ###")
+        self.index = dict()
+        for field in SEARCH_FIELDS:
+            embeddings = []
+            emb_field = f"{field}_emb"
+            for note in self.db:
+                if emb_field in note:
+                    emb = note[emb_field]
+                else:
+                    nf = note[field]
+                    if type(nf) == str:
+                        emb = self.embed([nf])
+                    elif type(nf) == list:
+                        emb = self.embed(nf)
+
+                    note[emb_field] = emb
+                embeddings += emb 
+            if not embeddings:
+                continue
+            
+            index = faiss.IndexFlatL2(self.model.config.hidden_size)
+            index.add(torch.vstack(embeddings))
+            self.index[field] = index
+    
+    def get_notes_by_field(self, by_field, inds):
+        f2i = self.f2i[by_field]
+        out = []
+        for i in inds:
+            o = dict(**self.db[f2i[i][0]])
+            o['nearest_field'] = f2i[i][1]
+            out.append(o)
+        return out
 
     def create_index(self, emb_matrix):
         self.index = faiss.IndexFlatL2(self.model.config.hidden_size)
@@ -177,44 +287,27 @@ class ThoughtManager:
                 emb = states[tokenized['attention_mask'][bn] == 1].mean(dim=0).cpu().detach()
                 embeddings.append(emb)
 
-        return torch.vstack(embeddings)
+        return embeddings
 
     def init_model(self, model_name, device):
-        model_path = os.path.join(self.save_path, 'model.pth')
-        tokenizer_path = os.path.join(self.save_path, 'tokenizer.pth')
-        if os.path.exists(model_path):
-            print("### Loading existing model ###")
-            self.tokenizer = torch.load(tokenizer_path)
-            self.model = torch.load(model_path)
-        else:
-            print("### Downloading model ###")
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModel.from_pretrained(model_name)
-            torch.save(self.tokenizer, tokenizer_path)
-            torch.save(self.model, model_path)
+        print("### Loading model ###")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name)
         self.model.eval()
         self.model.to(device)
         self.device = device
 
-    def extract_thoughts(self, note_db):
-        thoughts = note_db.cleaned_note.apply(get_thoughts)
-        note_db['thoughts'] = thoughts
-        return note_db.explode('thoughts').dropna(subset=['thoughts'])
-
-    def suggest_tags(self, text):
-        drop_tags = {'', 'voice'}
-        nearest = self.get_knn(text, 10)
-        all_tags = ', '.join(nearest.tags.dropna()).split(', ')
-        all_tags = list(filter(lambda x: x not in drop_tags, all_tags))
-        suggested_tags = [t[0] for t in Counter(all_tags).most_common(4)]
-        return suggested_tags
+    def load_db(self, from_scratch=False):
+        db_path = os.path.join(self.save_path, 'note_db.npy')
+        if not os.path.exists(db_path) or from_scratch:
+            self.db = []
+        else:
+            self.db = np.load(db_path, allow_pickle=True)
     
     def save(self):
-        if not os.path.exists(self.save_path):
-            os.system(f'mkdir {self.save_path}')
-
-        self.note_db.to_csv(os.path.join(self.save_path, 'thoughts.csv'), sep=';', index=False)
-        np.save(os.path.join(self.save_path, 'embeddings.npy'), self.embeddings)
+        os.makedirs(self.save_path, exist_ok=True)
+        db_path = os.path.join(self.save_path, 'note_db.npy')
+        np.save(db_path, self.db)
     
     def start_timer(self):
         class RepeatTimer(Timer):
@@ -222,5 +315,5 @@ class ThoughtManager:
                 while not self.finished.wait(self.interval):
                     self.function(*self.args, **self.kwargs)
 
-        self.timer = RepeatTimer(1800, self.parse_thoughts)
+        self.timer = RepeatTimer(1800, self.parse_notes)
         self.timer.start()

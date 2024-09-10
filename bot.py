@@ -13,7 +13,7 @@ from ocr import get_text_on_image
 
 from finance import SheetWriter
 from movies import get_movies, get_info, MovieSaver
-from thoughts import ThoughtManager
+from thoughts import NoteManager
 
 CONFIG_FOLDER = os.getenv("config")
 config_path = os.path.join(CONFIG_FOLDER, 'var.json')
@@ -51,7 +51,7 @@ class NoteBot(telebot.TeleBot):
         with open(sv_path, "w") as f:
             f.write(note_text)
         self.clear()
-        tm.parse_thoughts()
+        nm.parse_thoughts()
         
     def handle_expense(self, amount):
         self.amount = amount
@@ -78,7 +78,7 @@ bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['admin_chat
 sheet_writer = SheetWriter(gsheets_cred)
 punct = Punctuator(config['punct_model'])
 ms = MovieSaver(gsheets_cred, config['tmdb_api_key'])
-tm = ThoughtManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=int(config['batch_size']))
+nm = NoteManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=int(config['batch_size']))
 ocr_reader = easyocr.Reader(['en', 'ru'])
 
 def expense_markup():
@@ -220,7 +220,7 @@ def callback_query(call):
     elif call.data == "hashtag":
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
-        bot.suggested_tags = tm.suggest_tags(bot.text)
+        bot.suggested_tags = nm.suggest_tags(bot.text)
         msg = bot.send_message(bot.chat_id, "Введи название тега", reply_markup=tag_markup())
         bot.to_delete.append(msg.message_id)
     elif call.data.startswith("add_tag_"):
@@ -230,11 +230,12 @@ def callback_query(call):
         link = int(call.data.split('add_link_')[1])
         bot.links.append(bot.nearest.name.values[link])
     elif call.data == "get_thoughts":
-        bot.nearest = tm.get_nearest(bot.text, k=25)
+        bot.nearest = nm.get_nearest_all_fields(bot.text, k=25)
         nearest = bot.nearest[:5]
-        template = "[{}] {}\n{} [[{}]]\n\n"
-        thoughts = [template.format(i+1, t, round(float(d), 2), n) \
-                    for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
+        template = "[{}] {}\n{} ({}) [[{}]]\n\n"
+        thoughts = [template.format(i+1, n[n['search_field']][n['nearest_field']],\
+                                    round(float(n['distance']), 2), n['search_field'], n['name']) \
+                    for i, n in enumerate(nearest)]
         msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
         bot.to_delete.append(msg.message_id)
     elif call.data == "next_thoughts":
@@ -245,10 +246,10 @@ def callback_query(call):
             bot.clear()
         else:
             nearest = bot.nearest[:5]
-            template = "[{}] {}\n{} [[{}]]\n\n"
-            thoughts = [template.format(i+1, t, round(float(d), 2), n) \
-                    for i, (t, d, n) in enumerate(zip(nearest.thoughts, nearest.distance, nearest.name))]
-            bot.delete_message(bot.chat_id, bot.to_delete[-1])
+            template = "[{}] {}\n{} ({}) [[{}]]\n\n"
+            thoughts = [template.format(i+1, n[n['search_field']][n['nearest_field']],\
+                                    round(float(n['distance']), 2), n['search_field'], n['name']) \
+                        for i, n in enumerate(nearest)]
             msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
             bot.to_delete.append(msg.message_id)
         
