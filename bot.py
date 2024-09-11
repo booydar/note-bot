@@ -233,7 +233,7 @@ def callback_query(call):
         bot.nearest = nm.get_nearest_all_fields(bot.text, k=25)
         nearest = bot.nearest[:5]
         template = "[{}] {}\n{} ({}) [[{}]]\n\n"
-        thoughts = [template.format(i+1, n[n['search_field']][n['nearest_field']],\
+        thoughts = [template.format(i+1, n[n['search_field']][n['nearest_field']][:250],\
                                     round(float(n['distance']), 2), n['search_field'], n['name']) \
                     for i, n in enumerate(nearest)]
         msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
@@ -247,7 +247,7 @@ def callback_query(call):
         else:
             nearest = bot.nearest[:5]
             template = "[{}] {}\n{} ({}) [[{}]]\n\n"
-            thoughts = [template.format(i+1, n[n['search_field']][n['nearest_field']],\
+            thoughts = [template.format(i+1, n[n['search_field']][n['nearest_field']][:250],\
                                     round(float(n['distance']), 2), n['search_field'], n['name']) \
                         for i, n in enumerate(nearest)]
             msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())

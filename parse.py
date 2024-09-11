@@ -29,4 +29,5 @@ def parse_message(message, tags=[], links=[]):
     name = message[:50]
     if ' ' in name: 
         name = name[:-name[::-1].index(' ') - 1]
+    name = re.sub("[^a-zA-Zа-яА-Я \-]", '', name)
     return note, name
