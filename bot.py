@@ -2,8 +2,6 @@ import os
 import sys
 import json
 import random
-import pandas as pd
-
 import easyocr
 import telebot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -16,6 +14,7 @@ from movies import get_movies, get_info, MovieSaver
 from thoughts import NoteManager
 
 CONFIG_FOLDER = os.getenv("config")
+USER_ID = os.getenv("os_user_id")
 config_path = os.path.join(CONFIG_FOLDER, 'var.json')
 with open(config_path, 'r') as f:
     config = json.load(f)
@@ -50,8 +49,10 @@ class NoteBot(telebot.TeleBot):
         
         with open(sv_path, "w") as f:
             f.write(note_text)
+        if USER_ID is not None:
+            os.chown(sv_path, int(USER_ID), int(USER_ID))
         self.clear()
-        nm.parse_thoughts()
+        nm.parse_notes()
         
     def handle_expense(self, amount):
         self.amount = amount
@@ -228,7 +229,7 @@ def callback_query(call):
         bot.tags.append(tag_name)
     elif call.data.startswith("add_link_"):
         link = int(call.data.split('add_link_')[1])
-        bot.links.append(bot.nearest.name.values[link])
+        bot.links.append(bot.nearest[link]['name'])
     elif call.data == "get_thoughts":
         bot.nearest = nm.get_nearest_all_fields(bot.text, k=25)
         nearest = bot.nearest[:5]
@@ -250,6 +251,7 @@ def callback_query(call):
             thoughts = [template.format(i+1, n[n['search_field']][n['nearest_field']][:250],\
                                     round(float(n['distance']), 2), n['search_field'], n['name']) \
                         for i, n in enumerate(nearest)]
+            bot.delete_message(bot.chat_id, bot.to_delete[-1])
             msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
             bot.to_delete.append(msg.message_id)
         
