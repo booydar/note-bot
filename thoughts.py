@@ -2,8 +2,6 @@ import re
 import os
 import nltk
 import numpy as np
-# import pandas as pd
-import json
 from threading import Timer
 from collections import Counter
 import torch
@@ -121,15 +119,27 @@ def llm(query):
     return response['message']['content']
 
 def llm_get_thoughts(text):
-    prompt = '''Summarize the following text in 2-3 sentences, formulate it very concisely. Text: {} Output only the concise summary, 2-3 sentences.'''
-    query = prompt.format(text[:20_000])
-    ans = llm(query)
-    if '\n' in ans: 
-        ans = ans.split('\n')[-1]
-    thoughts = ans.split('.')
-    thoughts = list(filter(len, thoughts))
-    thoughts = [t.strip() for t in thoughts]
-    return thoughts
+    try:
+        prompt = '''Summarize the following text in 2-3 sentences, formulate it very concisely. Text: {} Output only the concise summary, 2-3 sentences.'''
+        query = prompt.format(text[:20_000])
+        ans = llm(query)
+        if '\n' in ans: 
+            ans = ans.split('\n')[-1]
+        thoughts = ans.split('.')
+        thoughts = list(filter(len, thoughts))
+        thoughts = [t.strip() for t in thoughts]
+        return thoughts
+    except Exception as e:
+        print(f"Got error with ollama: {e}")
+        return
+
+def add_fields(note, text):
+    if not note.get('llm_thoughts'):
+        note['llm_thoughts'] = llm_get_thoughts(text)
+    if not note.get('sentences'):
+        note['sentences'] = get_sentences(text)
+    if not note.get('paragraphs'):
+        note['paragraphs'] = get_paragraphs(text)
 
 
 # SEARCH_FIELDS = ['cleaned_note', 'sentences', 'paragraphs', 'llm_thoughts']
@@ -162,12 +172,20 @@ class NoteManager:
         return nearest
 
     def get_nearest_all_fields(self, text, k=5):
+        note = {}
+        add_fields(note, text)
         nearest = []
-        for field in SEARCH_FIELDS:
-            nearest_f = self.get_nearest(text, k, field) 
-            for n in nearest_f:
-                n['search_field'] = field
-            nearest += nearest_f
+        for field in note:
+            note_f = note[field]
+            if not note_f:
+                continue
+            if type(note_f) == str:
+                note_f = [note_f]
+            for text in note_f:
+                nearest_f = self.get_nearest(text, k, field) 
+                for n in nearest_f:
+                    n['search_field'] = field
+                nearest += nearest_f
         return sorted(nearest, key=lambda n: n['distance'])
     
     def suggest_tags(self, text):
@@ -212,12 +230,7 @@ class NoteManager:
         print("### Extracting thoughts ###")
         for n in self.db:
             cn = n['cleaned_note']
-            if 'llm_thoughts' not in n:
-                n['llm_thoughts'] = llm_get_thoughts(cn)
-            if 'sentences' not in n:
-                n['sentences'] = get_sentences(cn)
-            if 'paragraphs' not in n:
-                n['paragraphs'] = get_paragraphs(cn)
+            add_fields(n, cn)
     
     def build_index(self):
         print("### Buliding index ###")
