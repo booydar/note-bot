@@ -78,9 +78,9 @@ class NoteBot(telebot.TeleBot):
 bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['admin_chat_id'])
 sheet_writer = SheetWriter(gsheets_cred)
 punct = Punctuator(config['punct_model'])
-ms = MovieSaver(gsheets_cred, config['tmdb_api_key'])
 nm = NoteManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=int(config['batch_size']))
 ocr_reader = easyocr.Reader(['en', 'ru'])
+ms = MovieSaver(gsheets_cred, config['tmdb_api_key'], config.get('tmdb_proxy'))
 
 def expense_markup():
     markup = InlineKeyboardMarkup()
@@ -167,7 +167,7 @@ def callback_query(call):
             movie = bot.movies[0]
             info = get_info(movie, type=bot.type)
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
-            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
+            ms.download_poster(movie.pop('poster_path'), out_path='tmp.jpg')
             with open('tmp.jpg', 'rb') as img:
                 msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
             os.remove('tmp.jpg')
@@ -183,7 +183,7 @@ def callback_query(call):
             movie = bot.movies[0]
             info = get_info(movie, type=bot.type)
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
-            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
+            ms.download_poster(movie.pop('poster_path'), out_path='tmp.jpg')
             with open('tmp.jpg', 'rb') as img:
                 msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
             os.remove('tmp.jpg')
@@ -195,7 +195,7 @@ def callback_query(call):
             movie = bot.movies[0]
             info = get_info(movie, type=bot.type)
             description = f"{info['название']} ({info['год']})\n{info['режиссер']}\n{movie['overview'][:400]}..."
-            os.system(f"wget https://image.tmdb.org/t/p/w600_and_h900_bestv2{movie.pop('poster_path')} -O tmp.jpg")
+            ms.download_poster(movie.pop('poster_path'), out_path='tmp.jpg')
             with open('tmp.jpg', 'rb') as img:
                 msg = bot.send_photo(bot.chat_id, img, caption=description, reply_markup=check_movie_markup())
             os.remove('tmp.jpg')

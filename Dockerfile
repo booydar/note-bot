@@ -8,7 +8,7 @@ COPY . /app/
 
 # install dependencies
 RUN apt-get update -y
-RUN apt-get install -y ffmpeg wget
+RUN apt-get install -y ffmpeg wget curl
 
 # RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu

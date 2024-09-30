@@ -1,4 +1,4 @@
-import numpy as np
+import os
 import pandas as pd
 import requests
 import tmdbsimple as tmdb
@@ -22,7 +22,6 @@ def get_info(film, type='movie'):
         movie = tmdb.TV(film['id'])
     info = movie.info()
     cast = movie.credits()
-    # return movie
 
     director = [m['name'] for m in cast['crew'] if m['job'] == 'Director' or m['job'] == 'Executive Producer']
     producer = [m['name'] for m in cast['crew'] if m['job'] == 'Producer']
@@ -53,10 +52,13 @@ def get_info(film, type='movie'):
 
 columns = ['Your Rating', 'название', 'год', 'дата просмотра', 'дата выхода', 'Type', 'Name', 'Rating', 'TMDb ID', 'IMDb ID', 'режиссер', 'сценарист', 'проюсер', 'актеры', 'студия', 'комментарий']
 class MovieSaver:
-    def __init__(self, cred_path, tmdb_api_key):
+    def __init__(self, cred_path, tmdb_api_key, proxy):
         tmdb.API_KEY = tmdb_api_key
-        tmdb.REQUESTS_TIMEOUT = (2, 5)
+        tmdb.REQUESTS_TIMEOUT = (30, 30)
         tmdb.REQUESTS_SESSION = requests.Session()
+        if proxy:
+            tmdb.REQUESTS_SESSION.proxies.update({'http': proxy, 'https': proxy})
+        self.proxy = proxy
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         self.credentials = ServiceAccountCredentials.from_json_keyfile_name(cred_path, scopes) 
 
@@ -75,3 +77,9 @@ class MovieSaver:
         sheet = file.open('фильмы').worksheets()[sheet_num]
         write_row_ind = max({len(sheet.col_values(1)), len(sheet.col_values(2))}) + 1
         sheet.update(f"A{write_row_ind}:P{write_row_ind}", [film_info])
+    
+    def download_poster(self, poster_path, out_path='tmp.jpg'):
+        if self.proxy:
+            os.system(f"curl -x {self.proxy} https://image.tmdb.org/t/p/w600_and_h900_bestv2{poster_path} -o {out_path}")
+        else:
+            os.system(f"curl https://image.tmdb.org/t/p/w600_and_h900_bestv2{poster_path} -o {out_path}")
