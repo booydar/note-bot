@@ -61,8 +61,8 @@ class NoteBot(telebot.TeleBot):
         return msg.message_id
 
     def clear(self):
-        self.text = ''
-        self.movie = self.rating = self.year = self.comment = self.amount = None
+        self.text = self.comment = ''
+        self.movie = self.rating = self.year = self.amount = None
         self.wait_value = None
         self.tags = []
         self.links = []
@@ -80,7 +80,7 @@ sheet_writer = SheetWriter(gsheets_cred)
 punct = Punctuator(config['punct_model'])
 nm = NoteManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=int(config['batch_size']))
 ocr_reader = easyocr.Reader(['en', 'ru'])
-ms = MovieSaver(gsheets_cred, config['tmdb_api_key'], config.get('tmdb_proxy'))
+ms = MovieSaver(cred_path=gsheets_cred, tmdb_api_key=config['tmdb_api_key'], proxy=config.get('tmdb_proxy'), note_db_path=config['note_db_path'])
 
 def expense_markup():
     markup = InlineKeyboardMarkup()
@@ -277,12 +277,10 @@ def handle_voice(message):
     raw, punctuated = bot.transcribe_message(message)
 
     if bot.wait_value == 'comment':
-        bot.comment = punctuated
+        bot.comment += punctuated + ' '
         msg = bot.send_message(message.chat.id, punctuated)
         bot.to_delete.append(msg.message_id)
     else:
-        bot.text_raw = bot.text
-        bot.text_raw += raw + " "
         bot.text += punctuated + " "
         msg = bot.send_message(message.chat.id, punctuated, reply_markup=voice_markup())
         bot.to_delete.append(msg.message_id)
@@ -328,7 +326,7 @@ def handle_text(message):
             bot.send_message(message.chat.id, "### Error processing rating, try again. ###")
 
     elif bot.wait_value == "comment":
-        bot.comment = message.text
+        bot.comment += message.text + ' '
     elif bot.wait_value == "tag":
         bot.tags.append(message.text)
     else:

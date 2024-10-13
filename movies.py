@@ -1,4 +1,5 @@
 import os
+import re
 import pandas as pd
 import requests
 import tmdbsimple as tmdb
@@ -50,9 +51,10 @@ def get_info(film, type='movie'):
                 }
     return film_info
 
+template = '''{date}\n#movies\n\n---\nRating: {rating}\n\n{text}\n'''
 columns = ['Your Rating', 'название', 'год', 'дата просмотра', 'дата выхода', 'Type', 'Name', 'Rating', 'TMDb ID', 'IMDb ID', 'режиссер', 'сценарист', 'проюсер', 'актеры', 'студия', 'комментарий']
 class MovieSaver:
-    def __init__(self, cred_path, tmdb_api_key, proxy):
+    def __init__(self, note_db_path, cred_path, tmdb_api_key, proxy):
         tmdb.API_KEY = tmdb_api_key
         tmdb.REQUESTS_TIMEOUT = (30, 30)
         tmdb.REQUESTS_SESSION = requests.Session()
@@ -61,6 +63,7 @@ class MovieSaver:
         self.proxy = proxy
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         self.credentials = ServiceAccountCredentials.from_json_keyfile_name(cred_path, scopes) 
+        self.note_db_path = note_db_path
 
     def save(self, movie, rating, type, comment=None, sheet=0):
         info = get_info(movie, type)
@@ -71,6 +74,24 @@ class MovieSaver:
         info['комментарий'] = comment
         film_info = [info[c] for c in columns]
         self.write_to_gsheet(film_info, sheet)
+        self.save_note(info)
+
+    def save_note(self, info):
+        date = re.sub('-', '.', info['дата просмотра'])
+
+        note_name = f"{re.sub('[^a-zA-Zа-яА-Я1-9ёЁ -]', '', info['название'])} - {info['год']}"
+        sv_path = os.path.join(self.note_db_path, f"art/movies/{note_name}.md")
+        if os.path.exists(sv_path):
+            sv_path = os.path.join(self.note_db_path, f"art/movies/{note_name} - {info['дата просмотра']}.md")
+
+        note_text = template.format(date=date, rating=info['Your Rating'], text=info['комментарий'])
+        
+        with open(sv_path, "w") as f:
+            f.write(note_text)
+
+        USER_ID = os.getenv("os_user_id")
+        if USER_ID is not None:
+            os.chown(sv_path, int(USER_ID), int(USER_ID))
 
     def write_to_gsheet(self, film_info, sheet_num):
         file = gspread.authorize(self.credentials) 
