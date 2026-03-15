@@ -23,8 +23,10 @@ with open(config_path, 'r') as f:
     ocr_thr = float(config.get('ocr_thr', 0.35))
 
 class NoteBot(telebot.TeleBot):
-    def __init__(self, api_token, note_db_path, admin_chat_id):
+    def __init__(self, api_token, note_db_path, admin_chat_id, proxy=None):
         super().__init__(api_token)
+        if proxy:
+            telebot.apihelper.proxy = proxy
         self.to_delete = []
         self.db_path = note_db_path
         self.admin_chat_id = admin_chat_id
@@ -75,10 +77,16 @@ class NoteBot(telebot.TeleBot):
         self.to_delete = []
 
 
-bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['admin_chat_id'])
+proxy_config = {'http': config.get('tmdb_proxy'), 'https': config.get('tmdb_proxy')} if config.get('tmdb_proxy') else None
+bot = NoteBot(config['tg_api_token'], config['note_db_path'], config['admin_chat_id'], proxy=proxy_config)
 sheet_writer = SheetWriter(gsheets_cred)
 punct = Punctuator(config['punct_model'])
 nm = NoteManager(config['note_db_path'], model_name=config['embedding_model'], save_path=config['cache_path'], batch_size=int(config['batch_size']))
+print(f"[DEBUG] NoteManager initialized")
+print(f"[DEBUG] Total notes in database: {len(nm.db)}")
+print(f"[DEBUG] Indexed fields: {list(nm.index.keys())}")
+for field in nm.index:
+    print(f"[DEBUG] Field '{field}': {nm.index[field].ntotal} vectors")
 ocr_reader = easyocr.Reader(['en', 'ru'])
 ms = MovieSaver(cred_path=gsheets_cred, tmdb_api_key=config['tmdb_api_key'], proxy=config.get('tmdb_proxy'), note_db_path=config['note_db_path'])
 
@@ -222,6 +230,9 @@ def callback_query(call):
         bot.answer_callback_query(call.id)
         bot.wait_value = "tag"
         bot.suggested_tags = nm.suggest_tags(bot.text)
+        if len(bot.suggested_tags) == 0:
+            bot.send_message(bot.chat_id, "Не найдено подходящих тегов. Введи название тега")
+            return
         msg = bot.send_message(bot.chat_id, "Введи название тега", reply_markup=tag_markup())
         bot.to_delete.append(msg.message_id)
     elif call.data.startswith("add_tag_"):
@@ -237,6 +248,9 @@ def callback_query(call):
         thoughts = [template.format(i+1, n[n['search_field']][n['nearest_field']][:250],\
                                     round(float(n['distance']), 2), n['search_field'], n['name']) \
                     for i, n in enumerate(nearest)]
+        if len(''.join(thoughts)) == 0:
+            bot.send_message(bot.chat_id, "Не найдено похожих заметок")
+            return
         msg = bot.send_message(bot.chat_id, ''.join(thoughts), reply_markup=thoughts_markup())
         bot.to_delete.append(msg.message_id)
     elif call.data == "next_thoughts":
@@ -316,14 +330,17 @@ def handle_text(message):
         try:
             bot.year = int(message.text)
         except ValueError:
-            bot.send_message(message.chat.id, "### Error processing year, try again. ###")
+            msg = bot.send_message(message.chat.id, "### Error processing year, try again. ###")
+            bot.to_delete.append(msg.message_id)
     elif bot.wait_value == "rating":
         try:
             bot.rating = int(message.text)
             bot.wait_value = "comment"
-            bot.send_message(message.chat.id, "Добавь комментарий", reply_markup=write_movie_markup())
+            msg = bot.send_message(message.chat.id, "Добавь комментарий", reply_markup=write_movie_markup())
+            bot.to_delete.append(msg.message_id)
         except ValueError:
-            bot.send_message(message.chat.id, "### Error processing rating, try again. ###")
+            msg = bot.send_message(message.chat.id, "### Error processing rating, try again. ###")
+            bot.to_delete.append(msg.message_id)
 
     elif bot.wait_value == "comment":
         bot.comment += message.text + ' '

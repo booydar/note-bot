@@ -1,6 +1,7 @@
 import re
 import os
 import nltk
+from tqdm import tqdm
 import numpy as np
 from threading import Timer
 from collections import Counter
@@ -39,17 +40,17 @@ def clean_thought(thought):
     return thought.strip()
 
 
-def filter_thought(thought):
+def filter_thought(thought, min_letters=30, min_words=10):
     if not thought:
         return False
     
     thought = str(thought)
     letters_only = re.sub('[^a-zA-Zа-яА-Я]', '',  thought)
-    if len(letters_only) < 30:
+    if len(letters_only) < min_letters:
         return False
     
     words_only = re.sub('[^a-zA-Zа-яА-Я ]', '',  thought)
-    if len(words_only.split(' ')) < 10:
+    if len(words_only.split(' ')) < min_words:
         return False
     
     return True
@@ -99,16 +100,16 @@ def parse_folder(db_path, len_thr=40):
     return db
 
 
-def get_sentences(note):
+def get_sentences(note, min_letters=30, min_words=10):
     sentences = [t for thought in re.split('\n|\t', note) for t in nltk.sent_tokenize(thought)]
     cleaned = list(map(clean_thought, sentences))
-    filtered = list(filter(filter_thought, cleaned))
+    filtered = list(filter(lambda x: filter_thought(x, min_letters, min_words), cleaned))
     return filtered
 
-def get_paragraphs(note):
+def get_paragraphs(note, min_letters=30, min_words=10):
     paragraphs = [p for p in re.split('\n\n', note)]
     cleaned = list(map(clean_thought, paragraphs))
-    filtered = list(filter(filter_thought, cleaned))
+    filtered = list(filter(lambda x: filter_thought(x, min_letters, min_words), cleaned))
     return filtered
 
 
@@ -133,17 +134,18 @@ def llm_get_thoughts(text):
         print(f"Got error with ollama: {e}")
         return
 
-def add_fields(note, text):
-    if not note.get('llm_thoughts'):
-        note['llm_thoughts'] = llm_get_thoughts(text)
+def add_fields(note, text, min_letters=30, min_words=10):
+    # if not note.get('llm_thoughts'):
+    #     note['llm_thoughts'] = llm_get_thoughts(text)
     if not note.get('sentences'):
-        note['sentences'] = get_sentences(text)
+        note['sentences'] = get_sentences(text, min_letters, min_words)
     if not note.get('paragraphs'):
-        note['paragraphs'] = get_paragraphs(text)
+        note['paragraphs'] = get_paragraphs(text, min_letters, min_words)
 
 
 # SEARCH_FIELDS = ['cleaned_note', 'sentences', 'paragraphs', 'llm_thoughts']
-SEARCH_FIELDS = ['sentences', 'paragraphs', 'llm_thoughts']
+# SEARCH_FIELDS = ['sentences', 'paragraphs', 'llm_thoughts']
+SEARCH_FIELDS = ['sentences', 'paragraphs']
 class NoteManager:
     def __init__(self, db_path, 
                         model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
@@ -173,11 +175,19 @@ class NoteManager:
 
     def get_nearest_all_fields(self, text, k=5):
         note = {}
-        add_fields(note, text)
+        # Use much more lenient filters for query text (min 5 letters, 2 words)
+        add_fields(note, text, min_letters=5, min_words=2)
+        print(f"[DEBUG] Extracted fields from query: {list(note.keys())}")
+        print(f"[DEBUG] Query field lengths: {[(f, len(note[f])) for f in note]}")
+        print(f"[DEBUG] Available indices: {list(self.index.keys())}")
         nearest = []
         for field in note:
             note_f = note[field]
             if not note_f:
+                print(f"[DEBUG] Field '{field}' is empty, skipping")
+                continue
+            if field not in self.index:
+                print(f"[DEBUG] Field '{field}' not in index, skipping")
                 continue
             if type(note_f) == str:
                 note_f = [note_f]
@@ -186,26 +196,33 @@ class NoteManager:
                 for n in nearest_f:
                     n['search_field'] = field
                 nearest += nearest_f
+                print(f"[DEBUG] Field '{field}': found {len(nearest_f)} nearest notes")
         return sorted(nearest, key=lambda n: n['distance'])
     
     def suggest_tags(self, text):
         drop_tags = {''}
         nearest = self.get_nearest_all_fields(text, 10)
+        print(f"[DEBUG] suggest_tags: found {len(nearest)} nearest notes")
         
         all_tags = [t for n in nearest for t in n['tags']]
+        print(f"[DEBUG] suggest_tags: extracted {len(all_tags)} tags total")
         all_tags = list(filter(lambda x: x not in drop_tags, all_tags))
         suggested_tags = [t[0] for t in Counter(all_tags).most_common(4)]
+        print(f"[DEBUG] suggest_tags: returning {len(suggested_tags)} suggested tags: {suggested_tags}")
         return suggested_tags
     
     def parse_notes(self):
         print("### Parsing notes ###")
         loaded = parse_folder(self.db_path, len_thr=40)
+        print(f"[DEBUG] Parsed {len(loaded)} notes from folder")
 
         self.add_notes(loaded)
+        print(f"[DEBUG] After adding notes, db has {len(self.db)} notes")
         self.extract_thoughts()
         self.build_index()
         self.embed_database()
         self.save()
+        print(f"[DEBUG] Final db has {len(self.db)} notes")
 
     def add_notes(self, notes):
         print("### Adding notes ###")
@@ -228,7 +245,7 @@ class NoteManager:
     
     def extract_thoughts(self):
         print("### Extracting thoughts ###")
-        for n in self.db:
+        for n in tqdm(self.db, desc="Extracting fields"):
             cn = n['cleaned_note']
             add_fields(n, cn)
     
@@ -248,6 +265,7 @@ class NoteManager:
                     field_inds += list(range(len(nf)))
             element_inds = range(len(note_inds))
             self.f2i[field] = dict(zip(element_inds, zip(note_inds, field_inds)))
+            print(f"[DEBUG] Field '{field}': indexed {len(note_inds)} elements")
     
     def embed_database(self):
         print("### Embedding DB ###")
@@ -255,7 +273,7 @@ class NoteManager:
         for field in SEARCH_FIELDS:
             embeddings = []
             emb_field = f"{field}_emb"
-            for note in self.db:
+            for note in tqdm(self.db, desc=f"Embedding {field}"):
                 if emb_field in note:
                     emb = note[emb_field]
                 else:
@@ -268,11 +286,14 @@ class NoteManager:
                     note[emb_field] = emb
                 embeddings += emb 
             if not embeddings:
+                print(f"[DEBUG] WARNING: Field '{field}' has no embeddings!")
                 continue
             
+            print(f"[DEBUG] Field '{field}': created {len(embeddings)} embeddings")
             index = faiss.IndexFlatL2(self.model.config.hidden_size)
             index.add(torch.vstack(embeddings))
             self.index[field] = index
+        print(f"[DEBUG] Total indexed fields: {list(self.index.keys())}")
     
     def get_notes_by_field(self, by_field, inds):
         f2i = self.f2i[by_field]
@@ -313,9 +334,12 @@ class NoteManager:
     def load_db(self, from_scratch=False):
         db_path = os.path.join(self.save_path, 'note_db.npy')
         if not os.path.exists(db_path) or from_scratch:
+            print(f"[DEBUG] Database not found at {db_path}, starting with empty db")
             self.db = []
         else:
             self.db = np.load(db_path, allow_pickle=True)
+            print(f"[DEBUG] Loaded database from {db_path}")
+            print(f"[DEBUG] Number of notes in db: {len(self.db)}")
     
     def save(self):
         os.makedirs(self.save_path, exist_ok=True)

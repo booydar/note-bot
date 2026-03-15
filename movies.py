@@ -74,7 +74,7 @@ class MovieSaver:
         info['комментарий'] = comment
         film_info = [info[c] for c in columns]
         self.write_to_gsheet(film_info, sheet)
-        if sheet == 0 and comment is not None:
+        if sheet == 0 and comment != '-':
             self.save_note(info)
 
     def save_note(self, info):
