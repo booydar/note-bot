@@ -1,0 +1,21 @@
+FROM python:3.10.1-alpine
+
+ENV PYTHONDONTWRITEBYTECODE 1
+
+ENV PYTHONUNBUFFERED 1
+
+# set a directory for the app
+WORKDIR /app
+
+# copy all the files to the container
+COPY . /app/
+
+# install dependencies
+RUN apk update
+RUN apk add ffmpeg
+RUN pip install --upgrade pip
+
+RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m nltk.downloader punkt
+
+CMD ["python", "-u", "./bot.py"]

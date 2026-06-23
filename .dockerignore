@@ -1,0 +1,7 @@
+.git
+notebooks
+nc_test
+**/__pycache__
+**/*.pyc
+nc-talk/logs
+nc_test/logs
