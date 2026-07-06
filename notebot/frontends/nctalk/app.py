@@ -92,8 +92,8 @@ class App:
         sess.last_id += len(chips)          # reaction system-messages consume ids
         sess.state = state
         sess.active_msg_id = msg_id
-        logger.debug("show state=%s menu_id=%s chips=%d last_id=%d",
-                     state, msg_id, len(chips), sess.last_id)
+        logger.info("show state=%s menu_id=%s chips=%d last_id=%d",
+                    state, msg_id, len(chips), sess.last_id)
 
     def done(self, sess: Session, backend, token, text):
         """Send a final confirmation and clear the flow."""
@@ -183,9 +183,9 @@ class App:
     def on_event(self, ev, backend):
         with self.lock:
             sess = self.store.get(ev["token"])
-            logger.debug("ev type=%s msg=%s emoji=%s state=%s active=%s last_id=%s",
-                         ev['type'], ev['msg_id'], ev['emoji'],
-                         sess.state, sess.active_msg_id, sess.last_id)
+            logger.info("ev type=%s msg=%s emoji=%s state=%s active=%s last_id=%s",
+                        ev['type'], ev['msg_id'], ev['emoji'],
+                        sess.state, sess.active_msg_id, sess.last_id)
 
             if ev["type"] == "Create" and ev["text"] is not None:
                 if ev["msg_id"] and str(ev["msg_id"]).isdigit():
