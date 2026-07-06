@@ -140,18 +140,38 @@ def done(sess: Session, backend, token, text):
 
 
 # --- note saving (the only logic mirrored from bot.py, kept tiny) ---------------
+def _chown_to_user(path: str) -> None:
+    """Hand a path to the host user so syncthing (runs as that user) can manage it.
+
+    The bot runs as root in Docker, so anything it creates is root-owned. The
+    Telegram bot only ever wrote files into a pre-existing (user-owned) `voice/`
+    dir, but here we create the subfolder ourselves — a root-owned dir blocks
+    syncthing from writing/deleting inside it, so chown the dirs too, not just
+    the file.
+    """
+    if USER_ID is None:
+        return
+    try:
+        os.chown(path, int(USER_ID), int(USER_ID))
+    except OSError:
+        pass
+
+
 def save_note(sess: Session) -> str:
     note_text, name = parse_message(sess.text, sess.tags, sess.links)
     name = name.strip() or "note"
-    path = os.path.join(NOTE_DB_PATH, NOTE_SUBFOLDER, f"{name}.md")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    note_dir = os.path.join(NOTE_DB_PATH, NOTE_SUBFOLDER)
+    os.makedirs(note_dir, exist_ok=True)
+    # chown each subfolder component we may have just created (e.g. voice, then
+    # voice/talk), leaving the existing, user-owned note db root untouched.
+    d = NOTE_DB_PATH
+    for part in NOTE_SUBFOLDER.strip("/").split("/"):
+        d = os.path.join(d, part)
+        _chown_to_user(d)
+    path = os.path.join(note_dir, f"{name}.md")
     with open(path, "w") as f:
         f.write(note_text)
-    if USER_ID is not None:
-        try:
-            os.chown(path, int(USER_ID), int(USER_ID))
-        except OSError:
-            pass
+    _chown_to_user(path)
     nm.parse_notes()  # reindex so the new note is searchable
     return name
 
