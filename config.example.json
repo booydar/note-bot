@@ -1,0 +1,24 @@
+{
+  "//": "Copy to <config folder>/var.json; set the `config` env var to that folder. gsheets.json (service-account credentials) lives in the same folder.",
+
+  "note_db_path": "/app/root/path/to/obsidian/vault",
+  "cache_path": "/app/root/path/to/cache/dir",
+
+  "tg_api_token": "123456:ABC... (telegram frontend only)",
+  "admin_chat_id": "123456789 (telegram frontend only)",
+  "punct_model": "/app/root/path/to/silero-te-model.pt (telegram voice notes only)",
+
+  "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "batch_size": "32",
+
+  "tmdb_api_key": "... (movie flows)",
+  "proxy": "socks5h://127.0.0.1:1080 (optional: for Google/TMDb/Telegram traffic)",
+  "ocr_thr": "0.35 (optional: OCR confidence threshold)",
+  "ffprobe": "/path/appended/to/sys.path (optional)",
+
+  "nc_note_subfolder": "voice/talk (nctalk: subfolder of the vault for new notes)",
+  "nc_user": "nextcloud user for attaching poster images (optional)",
+  "nc_app_password": "app password for that user (optional)",
+
+  "events_db": "optional; defaults to <cache_path>/events.sqlite"
+}

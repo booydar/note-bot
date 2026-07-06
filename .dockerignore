@@ -1,7 +1,6 @@
 .git
 notebooks
-nc_test
+tests
+deploy/logs
 **/__pycache__
 **/*.pyc
-nc-talk/logs
-nc_test/logs

@@ -1,2 +1,8 @@
 __pycache__/
-config.json
+*.pyc
+*.npy
+*.sqlite
+.pytest_cache/
+notebot.egg-info/
+deploy/logs/
+saved/

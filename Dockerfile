@@ -1,20 +1,22 @@
+# One image for both frontends. Dependencies are installed before the code is
+# copied, so editing the bot only rebuilds the final (fast) layer instead of
+# reinstalling torch every time.
+#
+#   docker build -t notebot .
+#   docker run ... notebot python -m notebot telegram
+#   docker run ... notebot python -m notebot nctalk      (the default)
 FROM python:3.11-slim-bookworm
-
-# set a directory for the app
 WORKDIR /app
 
-# copy all the files to the container
-COPY . /app/
+RUN apt-get update -y && apt-get install -y --no-install-recommends ffmpeg wget curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# install dependencies
-RUN apt-get update -y
-RUN apt-get install -y ffmpeg wget curl
-
-# RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
-# RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-# RUN pip install torch torchvision torchaudio
-RUN pip install torch==2.0.1+cpu torchvision==0.15.2+cpu torchaudio==2.0.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
+COPY requirements.txt /app/
+RUN pip install torch==2.0.1+cpu torchvision==0.15.2+cpu torchaudio==2.0.2+cpu \
+    -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m nltk.downloader punkt
 
-CMD ["python", "-u", "./bot.py"]
+COPY . /app/
+
+CMD ["python", "-u", "-m", "notebot", "nctalk"]

@@ -2,7 +2,7 @@
 #
 # Rebuild + restart the NC note-bot WITHOUT touching the Talk registration
 # (keeps it attached to your conversation). Run with sudo on the home host:
-#     sudo bash ~/Tools/notebot-nc-integration/nc-talk/restart.sh
+#     sudo bash ~/Tools/notebot-nc-integration/deploy/restart.sh
 #
 set -euo pipefail
 
@@ -21,7 +21,7 @@ OS_USER_ID=1000
 [ -f "$SECRET_FILE" ] || { echo "No secret at $SECRET_FILE — run deploy.sh first."; exit 1; }
 mkdir -p "$LOG_DIR"; chmod 777 "$LOG_DIR"; : > "$LOG_DIR/bot.log"; chmod 666 "$LOG_DIR/bot.log"
 
-docker build -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT"
+docker build -t "$IMAGE" "$ROOT"
 docker rm -f "$BOT_NAME" >/dev/null 2>&1 || true
 docker run -d --name "$BOT_NAME" --restart unless-stopped \
   --network host \

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Deploy the NC Talk note-bot on the home host. Run with sudo:
-#     sudo bash ~/Tools/notebot-nc-integration/nc-talk/deploy.sh
+#     sudo bash ~/Tools/notebot-nc-integration/deploy/deploy.sh
 #
 # It mirrors the Telegram bot's mounts/env so config + vault + cache resolve the
 # same way, builds the image from the repo root, runs it on the Nextcloud network,
@@ -48,7 +48,7 @@ echo "==> Log dir (readable without sudo): $LOG_DIR/bot.log"
 mkdir -p "$LOG_DIR"; chmod 777 "$LOG_DIR"; : > "$LOG_DIR/bot.log"; chmod 666 "$LOG_DIR/bot.log"
 
 echo "==> Building image (context: $ROOT) — first build is slow (torch etc.)"
-docker build -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT"
+docker build -t "$IMAGE" "$ROOT"
 
 echo "==> (Re)starting container with host networking"
 docker rm -f "$BOT_NAME" >/dev/null 2>&1 || true

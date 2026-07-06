@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "notebot"
+version = "1.0.0"
+description = "Personal note-taking bot: Telegram + Nextcloud Talk frontends over one vault/index backend"
+requires-python = ">=3.9"
+dependencies = [
+    "easyocr",
+    "faiss-cpu",
+    "gspread",
+    "nltk",
+    "numpy",
+    "oauth2client",
+    "ollama",
+    "pandas",
+    "pydub",
+    "pysocks",
+    "pyTelegramBotAPI",
+    "pytz",
+    "requests",
+    "SpeechRecognition",
+    "tmdbsimple",
+    "torch",
+    "tqdm",
+    "transformers",
+]
+
+[tool.setuptools.packages.find]
+include = ["notebot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

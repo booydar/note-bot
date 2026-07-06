@@ -19,6 +19,8 @@ def get_text(ocr_result):
                 lines.append(line)
                 coord = [(y_min, y_max)]
                 line = [res[1]]
+    if line:
+        lines.append(line)  # don't drop the last row
     text = '\n'.join([' '.join(l) for l in lines])
     return text
 

@@ -1,15 +1,16 @@
-"""Per-conversation state for the NC Talk frontend.
+"""Per-conversation state, shared by both frontends.
 
-Talk gives no buttons, so a flow is driven by (a) reaction chips on the bot's last
-message and (b) typed replies. `state` says which menu/prompt is active, so a tapped
-emoji or a typed line can be interpreted in context.
+A flow is driven by a menu on the bot's last message (inline buttons on
+Telegram, reaction chips on NC Talk) plus typed replies. `state` says which
+menu/prompt is active, so a tap or a typed line can be interpreted in context.
 
-`last_id` tracks the most recent message id in the conversation. Because Talk ids are
-sequential and the send API doesn't return the new id, we count every message we send
-(and sync to every id we see) so we always know which id our next reply will have —
-that's the id we seed chips on (the "id + 1" trick, generalised to survive any
-intermediate messages).
+NC Talk specifics: `last_id` tracks the most recent message id in the
+conversation. Talk ids are sequential and the send API doesn't return the new
+id, so we count every message we send (and sync to every id we see) to know
+which id our next reply will have — that's the id we seed chips on.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
@@ -29,8 +30,14 @@ EXPENSE_CATEGORY = "expense_category"  # amount set, pick a category (type comme
 @dataclass
 class Session:
     state: str = IDLE
+
+    # nc-talk message-id bookkeeping
     last_id: int = 0
     active_msg_id: Optional[int] = None  # the message whose chips are "live"
+
+    # telegram bookkeeping
+    chat_id: Optional[int] = None
+    to_delete: list = field(default_factory=list)  # intermediate messages to clean up
 
     # capture / note
     text: str = ""
@@ -52,18 +59,18 @@ class Session:
     amount: Optional[int] = None
     category: Optional[str] = None
 
-    def reset(self, keep_last_id: bool = True):
-        last_id = self.last_id
+    def reset(self):
+        """Clear flow state; keep the per-conversation bookkeeping."""
+        last_id, chat_id = self.last_id, self.chat_id
         self.__init__()
-        if keep_last_id:
-            self.last_id = last_id
+        self.last_id, self.chat_id = last_id, chat_id
 
 
 class SessionStore:
     def __init__(self):
-        self._sessions: dict[str, Session] = {}
+        self._sessions: dict = {}
 
-    def get(self, token: str) -> Session:
-        if token not in self._sessions:
-            self._sessions[token] = Session()
-        return self._sessions[token]
+    def get(self, key) -> Session:
+        if key not in self._sessions:
+            self._sessions[key] = Session()
+        return self._sessions[key]

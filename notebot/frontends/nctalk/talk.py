@@ -10,6 +10,8 @@ Signing recipes (confirmed against the live server):
   outgoing  : message -> over the message text; reaction -> over the emoji
 """
 
+from __future__ import annotations
+
 import json
 import hmac
 import hashlib
@@ -72,7 +74,7 @@ class TalkClient:
         return None
 
     def send_message(self, backend: str, token: str, text: str):
-        self._post(
+        return self._post(
             backend, f"/ocs/v2.php/apps/spreed/api/v1/bot/{token}/message",
             text, {"message": text, "referenceId": secrets.token_hex(16)},
         )
